@@ -19,7 +19,7 @@ async function getProjetos() {
     .select(`
       *,
       tarefas ( id, status ),
-      compras_extras ( id, status )
+      compras_extras ( id, status, descricao )
     `)
     .neq('status', 'arquivado')
     .order('created_st', { ascending: false });
