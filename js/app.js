@@ -61,14 +61,11 @@ function navegarPara(view, btn) {
   document.querySelectorAll(`.bottom-nav-item[data-view="${view}"]`).forEach(b => b.classList.add('active'));
   document.querySelectorAll(`.nav-item[data-view="${view}"]`).forEach(b => b.classList.add('active'));
 
-  // Carregar linha do tempo ao navegar para ela
-  if (view === 'linha-do-tempo') {
-    renderizarLinhaDeTempo();
-  }
+  // Carregar linha do tempo ao navegar para ela (removido — agora integrado ao projeto)
 
   // Header
-  const titulos = { hoje: 'Hoje', projetos: 'Projetos', 'linha-do-tempo': 'Linha do Tempo' };
-  const subtitulos = { hoje: 'Suas próximas ações', projetos: 'Todos os seus projetos', 'linha-do-tempo': 'Prazos e carga de trabalho' };
+  const titulos = { hoje: 'Hoje', projetos: 'Projetos' };
+  const subtitulos = { hoje: 'Suas próximas ações', projetos: 'Todos os seus projetos' };
   document.getElementById('headerTitle').textContent = titulos[view] || '';
   document.getElementById('headerSubtitle').textContent = subtitulos[view] || '';
 
@@ -698,6 +695,143 @@ function renderizarProjetoDetalheHeader(p) {
         Editar
       </button>
     </div>`;
+
+  // Renderiza bloco de carga de trabalho abaixo do header
+  renderizarCargaTrabalho(p);
+}
+
+/* ═══════════════════════════════════════
+   CARGA DE TRABALHO — bloco do projeto
+═══════════════════════════════════════ */
+
+const HORAS_DIA_UTIL = 8;
+
+function renderizarCargaTrabalho(p) {
+  const el = document.getElementById('projetoCargaTrabalho');
+  if (!el) return;
+
+  // Só exibe se tiver prazo definido
+  if (!p.data_fim) {
+    el.style.display = 'none';
+    return;
+  }
+
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const prazoDate = new Date(p.data_fim + 'T23:59:59');
+  const diasRestantes = Math.ceil((prazoDate - hoje) / (1000 * 60 * 60 * 24));
+
+  // Pega tarefas pendentes do state (já carregado)
+  const tarefasPend = (p.tarefas || []).filter(t => t.status !== 'concluida');
+  const tarefasConc = (p.tarefas || []).filter(t => t.status === 'concluida');
+  const totalTarefas = (p.tarefas || []).length;
+
+  const horasTotais = tarefasPend.reduce((acc, t) => acc + (parseFloat(t.duracao_estimada) || 0), 0);
+
+  // Converter horas → dias úteis + horas restantes
+  const diasUteis = Math.floor(horasTotais / HORAS_DIA_UTIL);
+  const horasRestantes = Math.round((horasTotais % HORAS_DIA_UTIL) * 10) / 10;
+
+  // Progresso de tarefas
+  const progresso = totalTarefas > 0 ? Math.round((tarefasConc.length / totalTarefas) * 100) : 0;
+
+  // Determinar status
+  let statusClass = 'ok';
+  if (diasRestantes < 0) {
+    statusClass = 'risco';
+  } else if (horasTotais > 0) {
+    const diasNecessarios = horasTotais / HORAS_DIA_UTIL;
+    const folga = diasRestantes - diasNecessarios;
+    if (folga < 2) statusClass = 'risco';
+    else if (folga < 5) statusClass = 'atencao';
+    else statusClass = 'ok';
+  }
+
+  // Texto da métrica de carga
+  let cargaTexto = '';
+  if (horasTotais > 0) {
+    if (diasUteis > 0 && horasRestantes > 0) {
+      cargaTexto = `<span class="carga-meta-destaque">${diasUteis} dia${diasUteis !== 1 ? 's' : ''} e ${horasRestantes}h</span> de trabalho`;
+    } else if (diasUteis > 0) {
+      cargaTexto = `<span class="carga-meta-destaque">${diasUteis} dia${diasUteis !== 1 ? 's' : ''}</span> de trabalho`;
+    } else {
+      cargaTexto = `<span class="carga-meta-destaque">${horasRestantes}h</span> de trabalho`;
+    }
+  }
+
+  // Texto de folga
+  let folgaTexto = '';
+  let htmlAlerta = '';
+  if (diasRestantes < 0) {
+    htmlAlerta = `
+      <div class="carga-alerta danger">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--red-500)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <span class="carga-alerta-text">Prazo vencido há ${Math.abs(diasRestantes)} dia${Math.abs(diasRestantes) !== 1 ? 's' : ''}. Atualize o prazo ou archive o projeto.</span>
+      </div>`;
+  } else if (horasTotais > 0) {
+    const diasNecessarios = horasTotais / HORAS_DIA_UTIL;
+    const folga = diasRestantes - diasNecessarios;
+    const folgaDias = Math.floor(folga);
+
+    if (folga < 0) {
+      htmlAlerta = `
+        <div class="carga-alerta danger">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--red-500)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <span class="carga-alerta-text">Carga excede o prazo — você precisa de ${diasUteis > 0 ? diasUteis + 'd' : ''}${horasRestantes > 0 ? horasRestantes + 'h' : ''} de trabalho mas só tem <strong>${diasRestantes} dia${diasRestantes !== 1 ? 's' : ''}</strong> restante${diasRestantes !== 1 ? 's' : ''}. Renegocie prazos ou redistribua tarefas.</span>
+        </div>`;
+    } else if (folga < 3) {
+      htmlAlerta = `
+        <div class="carga-alerta">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--amber-600)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <span class="carga-alerta-text">Folga apertada — só <strong>${folgaDias} dia${folgaDias !== 1 ? 's' : ''} de margem</strong> entre o trabalho restante e o prazo. Mantenha o ritmo.</span>
+        </div>`;
+    } else {
+      htmlAlerta = `
+        <div class="carga-alerta ok">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green-600)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          <span class="carga-alerta-text">No prazo — <strong>${folgaDias} dia${folgaDias !== 1 ? 's' : ''} de folga</strong> após concluir todo o trabalho estimado.</span>
+        </div>`;
+    }
+  }
+
+  // Datas
+  const inicio = p.data_inicio ? formatarDataCurta(p.data_inicio) : '02 de jun.';
+  const prazoLabel = formatarDataCurta(p.data_fim);
+  const diasLabel = diasRestantes < 0
+    ? `vencido há ${Math.abs(diasRestantes)}d`
+    : `${diasRestantes} dia${diasRestantes !== 1 ? 's' : ''}`;
+
+  let corBarra = diasRestantes < 0 ? 'var(--red-500)' : statusClass === 'risco' ? 'var(--red-500)' : statusClass === 'atencao' ? 'var(--amber-500)' : 'var(--green-500)';
+
+  el.style.display = 'block';
+  el.innerHTML = `
+    <div class="carga-bloco ${statusClass}">
+      <div class="carga-meta-row">
+        <span class="carga-meta-item">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <span class="carga-meta-destaque">${diasLabel}</span> para o prazo
+        </span>
+        ${horasTotais > 0 ? `
+        <span class="carga-meta-item">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          ${cargaTexto} pendente
+        </span>` : ''}
+        <span class="carga-meta-item">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          <span class="carga-meta-destaque">${progresso}%</span> concluído
+        </span>
+      </div>
+      <div class="carga-bar-wrap">
+        <div class="carga-track">
+          <div class="carga-fill" style="width:${progresso}%;background:${corBarra}"></div>
+        </div>
+        <div class="carga-bar-labels">
+          <span>${inicio}</span>
+          <span>${prazoLabel}</span>
+        </div>
+      </div>
+      ${htmlAlerta}
+    </div>`;
 }
 
 /* ═══════════════════════════════════════
@@ -727,6 +861,12 @@ async function carregarTarefasDoProjeto(projetoId) {
 
     lista.innerHTML = tarefas.map(t => renderizarTarefaItem(t)).join('');
 
+    // Atualiza bloco de carga com dados completos das tarefas (duração_estimada incluída)
+    if (state.projetoAtual) {
+      const projetoComTarefas = { ...state.projetoAtual, tarefas };
+      renderizarCargaTrabalho(projetoComTarefas);
+    }
+
     // Se veio de "hoje", abre a tarefa específica automaticamente
     if (state.tarefaAtualId) {
       const el = document.getElementById('tarefa-' + state.tarefaAtualId);
@@ -750,6 +890,34 @@ function renderizarTarefaItem(t) {
   const pct = total > 0 ? Math.round((concluidas / total) * 100) : 0;
   const isDone = t.status === 'concluida';
 
+  // Tags de duração e prazo interno
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+
+  let tagDur = '';
+  if (t.duracao_estimada && !isDone) {
+    const dur = parseFloat(t.duracao_estimada);
+    const diasD = Math.floor(dur / HORAS_DIA_UTIL);
+    const horas = Math.round((dur % HORAS_DIA_UTIL) * 10) / 10;
+    let durLabel = '';
+    if (diasD > 0 && horas > 0) durLabel = `${diasD}d ${horas}h`;
+    else if (diasD > 0) durLabel = `${diasD}d`;
+    else durLabel = `${horas}h`;
+    tagDur = `<span class="tarefa-tag-dur" title="Duração estimada">${durLabel}</span>`;
+  }
+
+  let tagPrazo = '';
+  if (t.data_limite && !isDone) {
+    const dl = new Date(t.data_limite + 'T23:59:59');
+    const diasP = Math.ceil((dl - hoje) / (1000 * 60 * 60 * 24));
+    let prazoClass = 'ok';
+    let prazoLabel = formatarDataCurta(t.data_limite);
+    if (diasP < 0) { prazoClass = 'late'; prazoLabel = 'atrasada'; }
+    else if (diasP <= 3) { prazoClass = 'warn'; prazoLabel = `${diasP}d`; }
+    tagPrazo = `<span class="tarefa-tag-prazo ${prazoClass}" title="Prazo interno">${prazoLabel}</span>`;
+  } else if (!t.data_limite && !isDone && t.duracao_estimada) {
+    tagPrazo = `<span class="tarefa-tag-prazo sem" title="Sem prazo interno definido">sem prazo</span>`;
+  }
+
   return `
   <div class="tarefa-item" id="tarefa-${t.id}">
     <div class="tarefa-header" onclick="toggleTarefaExpand('${t.id}')">
@@ -763,7 +931,8 @@ function renderizarTarefaItem(t) {
           <span style="font-size:var(--text-xs);color:var(--text-tertiary)">${concluidas}/${total}</span>
         </div>` : ''}
       </div>
-      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
+        ${tagDur}${tagPrazo}
         <span class="badge badge-${t.prioridade || 'importante'}" style="cursor:pointer" title="Clique para mudar prioridade" onclick="event.stopPropagation();ciclaPrioridade('${t.id}','${t.prioridade || 'importante'}')">${labelPrioridade(t.prioridade)}</span>
         <button class="btn btn-icon btn-ghost" onclick="event.stopPropagation();abrirModalEditarTarefa('${t.id}')" title="Editar tarefa">
           <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
@@ -1364,6 +1533,18 @@ async function abrirModalEditarTarefa(tarefaId) {
   container.innerHTML = '';
 
   try {
+    // Busca dados completos da tarefa para preencher duracao e data_limite
+    const { data: tarefaData } = await db.from('tarefas')
+      .select('duracao_estimada, data_limite, status')
+      .eq('id', tarefaId)
+      .single();
+
+    if (tarefaData) {
+      if (tarefaData.duracao_estimada) document.getElementById('tarefaDuracao').value = tarefaData.duracao_estimada;
+      if (tarefaData.data_limite) document.getElementById('tarefaDataLimite').value = tarefaData.data_limite;
+      if (tarefaData.status) document.getElementById('tarefaStatus').value = tarefaData.status;
+    }
+
     const { data: subs } = await db.from('subtarefas')
       .select('id, titulo, concluida')
       .eq('tarefa_id', tarefaId)
