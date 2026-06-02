@@ -220,7 +220,7 @@ async function carregarListaTemplates() {
       const etapas = (t.conteudo || []).length;
       const ativo  = t.ativo !== false;
       return `
-        <div class="template-card${ativo ? '' : ' inativo'}" id="tcard-${t.id}">
+        <div class="template-card${ativo ? '' : ' inativo'}" id="tcard-${t.id}" style="cursor:pointer" onclick="editarTemplate('${t.id}')">
           <div class="template-card-header">
             <div class="template-card-icon" style="background:${tipoBg[t.categoria] || tipoBg.outro}">${tipoEmoji[t.categoria] || '📁'}</div>
             <div class="template-card-info">
@@ -229,7 +229,7 @@ async function carregarListaTemplates() {
             </div>
           </div>
           <div class="template-card-meta">${etapas} etapa${etapas !== 1 ? 's' : ''} · ${ativo ? '<span style="color:var(--green-600);font-weight:600">Ativo</span>' : '<span style="color:var(--text-tertiary)">Inativo</span>'}</div>
-          <div class="template-card-actions">
+          <div class="template-card-actions" onclick="event.stopPropagation()">
             <button class="btn btn-secondary btn-sm" onclick="editarTemplate('${t.id}')">
               <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
               Editar
@@ -1526,22 +1526,61 @@ async function criarTemplateEtapasPlanejado(projetoId, categoria = 'planejado') 
   if (templateSalvo && templateSalvo.conteudo && templateSalvo.conteudo.length > 0) {
     etapas = templateSalvo.conteudo;
   } else {
-    // Fallback: etapas padrão hardcoded para planejado
+    // Fallback hardcoded para planejado
     etapas = [
-      { titulo: 'Briefing com o cliente', descricao: 'Coletar medidas do ambiente, estilo desejado, referências e necessidades.', prioridade: 'urgente' },
-      { titulo: 'Projeto no SketchUp', descricao: 'Criar visualização 3D conforme briefing e alinhá-la com o cliente.', prioridade: 'urgente' },
-      { titulo: 'Orçamento e proposta', descricao: 'Calcular custo de material, mão de obra e definir margem. Enviar proposta.', prioridade: 'urgente' },
-      { titulo: 'Contrato assinado', descricao: 'Formalizar o acordo, receber 50% do valor combinado.', prioridade: 'urgente' },
-      { titulo: 'Pedido de material', descricao: 'Enviar plano de corte ao parceiro e fechar pedido com fornecedor.', prioridade: 'importante' },
-      { titulo: 'Compras extras', descricao: 'Adquirir puxadores, vidros, espelhos e demais itens fora do fornecedor padrão.', prioridade: 'importante' },
-      { titulo: 'Pré-montagem na marcenaria', descricao: 'Acompanhar montagem, conferir medidas e acabamento.', prioridade: 'importante' },
-      { titulo: 'Entrega e instalação', descricao: 'Organizar frete, agendar instalação com parceiro e confirmar com o cliente.', prioridade: 'urgente' },
-      { titulo: 'Pagamento final e encerramento', descricao: 'Receber os 50% restantes e documentar o projeto concluído.', prioridade: 'importante' },
+      { titulo: 'Briefing com o cliente', descricao: 'Coletar medidas do ambiente, estilo desejado, referências e necessidades.', prioridade: 'urgente', prazo_dias: 2, sequencia: 1 },
+      { titulo: 'Projeto no SketchUp', descricao: 'Criar visualização 3D conforme briefing e alinhá-la com o cliente.', prioridade: 'urgente', prazo_dias: 7, sequencia: 2 },
+      { titulo: 'Orçamento e proposta', descricao: 'Calcular custo de material, mão de obra e definir margem. Enviar proposta.', prioridade: 'urgente', prazo_dias: 10, sequencia: 3 },
+      { titulo: 'Contrato assinado', descricao: 'Formalizar o acordo, receber 50% do valor combinado.', prioridade: 'urgente', prazo_dias: 14, sequencia: 4 },
+      { titulo: 'Pedido de material', descricao: 'Enviar plano de corte ao parceiro e fechar pedido com fornecedor.', prioridade: 'importante', prazo_dias: 16, sequencia: 5 },
+      { titulo: 'Compras extras', descricao: 'Adquirir puxadores, vidros, espelhos e demais itens fora do fornecedor padrão.', prioridade: 'importante', prazo_dias: 18, sequencia: 6 },
+      { titulo: 'Pré-montagem na marcenaria', descricao: 'Acompanhar montagem, conferir medidas e acabamento.', prioridade: 'importante', prazo_dias: 25, sequencia: 7 },
+      { titulo: 'Entrega e instalação', descricao: 'Organizar frete, agendar instalação com parceiro e confirmar com o cliente.', prioridade: 'urgente', prazo_dias: 28, sequencia: 8 },
+      { titulo: 'Pagamento final e encerramento', descricao: 'Receber os 50% restantes e documentar o projeto concluído.', prioridade: 'importante', prazo_dias: 30, sequencia: 9 },
     ];
   }
 
-  const payload = etapas.map(e => ({ titulo: e.titulo, descricao: e.descricao || '', prioridade: e.prioridade || 'importante', projeto_id: projetoId, status: 'pendente', ordem: e.ordem || 0 }));
-  await db.from('tarefas').insert(payload);
+  // Buscar data de início do projeto para calcular data_limite
+  const { data: proj } = await db.from('projetos').select('data_inicio, created_st').eq('id', projetoId).single();
+  const dataBase = proj?.data_inicio
+    ? new Date(proj.data_inicio + 'T12:00:00')
+    : new Date();
+
+  // Criar tarefas
+  for (const e of etapas) {
+    // Calcular data_limite a partir de prazo_dias
+    let dataLimite = null;
+    if (e.prazo_dias != null) {
+      const dl = new Date(dataBase);
+      dl.setDate(dl.getDate() + e.prazo_dias);
+      dataLimite = dl.toISOString().split('T')[0];
+    }
+
+    const { data: tarefa, error: errTarefa } = await db.from('tarefas').insert([{
+      projeto_id:        projetoId,
+      titulo:            e.titulo,
+      descricao:         e.descricao || '',
+      prioridade:        e.prioridade || 'importante',
+      status:            'pendente',
+      ordem:             e.ordem || 0,
+      duracao_estimada:  e.duracao_estimada ?? null,
+      data_limite:       dataLimite,
+      sequencia:         e.sequencia ?? null,
+    }]).select().single();
+
+    if (errTarefa) throw errTarefa;
+
+    // Criar subtarefas se existirem
+    if (tarefa && e.subtarefas && e.subtarefas.length > 0) {
+      const subs = e.subtarefas.map((nome, idx) => ({
+        tarefa_id: tarefa.id,
+        titulo:    nome,
+        concluida: false,
+        ordem:     idx,
+      }));
+      await db.from('subtarefas').insert(subs);
+    }
+  }
 }
 
 /* ═══════════════════════════════════════
@@ -1580,7 +1619,7 @@ async function carregarEtapasTemplate() {
 
 function renderizarEtapasTemplate() {
   const lista = document.getElementById('templateEtapasList');
-  const etapas = state._templateEtapas || [];
+  let etapas = state._templateEtapas || [];
   const prioClass = { urgente: 'badge-urgente', importante: 'badge-importante', espera: 'badge-espera' };
 
   if (etapas.length === 0) {
@@ -1588,34 +1627,73 @@ function renderizarEtapasTemplate() {
     return;
   }
 
-  lista.innerHTML = etapas.map((e, i) => `
-    <div class="tarefa-item" style="margin-bottom:8px" id="template-etapa-${i}">
-      <div class="tarefa-header" style="cursor:default">
-        <div style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--bg-muted);font-size:11px;font-weight:700;color:var(--text-tertiary);flex-shrink:0">${i + 1}</div>
+  // Ordenar: com sequencia primeiro (asc), sem sequencia ao final (por índice)
+  const comSeq  = etapas.filter(e => e.sequencia != null).sort((a, b) => a.sequencia - b.sequencia);
+  const semSeq  = etapas.filter(e => e.sequencia == null);
+  const ordenadas = [...comSeq, ...semSeq];
+
+  lista.innerHTML = ordenadas.map((e, displayIdx) => {
+    const idx = etapas.indexOf(e); // índice real no array de estado
+    const numLabel = displayIdx + 1;
+    const durLabel = e.duracao_estimada
+      ? (() => { const d = parseFloat(e.duracao_estimada); const dias = Math.floor(d/8); const h = Math.round((d%8)*10)/10; return dias > 0 ? (h > 0 ? `${dias}d ${h}h` : `${dias}d`) : `${h}h`; })()
+      : null;
+    const prazoLabel = e.prazo_dias != null ? `+${e.prazo_dias}d` : null;
+
+    return `
+    <div class="tarefa-item" style="margin-bottom:8px;cursor:pointer" id="template-etapa-${idx}" onclick="editarEtapaTemplate(${idx})">
+      <div class="tarefa-header">
+        <div style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--bg-muted);font-size:11px;font-weight:700;color:var(--text-tertiary);flex-shrink:0">${numLabel}</div>
         <div style="flex:1;min-width:0;margin-left:10px">
           <div class="tarefa-nome">${escHTML(e.titulo)}</div>
           ${e.descricao ? `<div style="font-size:var(--text-xs);color:var(--text-tertiary);margin-top:2px">${escHTML(e.descricao)}</div>` : ''}
+          ${(durLabel || prazoLabel) ? `<div style="display:flex;gap:6px;margin-top:4px">
+            ${durLabel ? `<span class="tarefa-tag-dur" style="font-size:10px">${durLabel}</span>` : ''}
+            ${prazoLabel ? `<span class="tarefa-tag-prazo ok" style="font-size:10px">${prazoLabel}</span>` : ''}
+          </div>` : ''}
         </div>
-        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0" onclick="event.stopPropagation()">
           <span class="badge ${prioClass[e.prioridade] || 'badge-gray'}">${labelPrioridade(e.prioridade)}</span>
-          <button class="btn btn-icon btn-ghost btn-sm" onclick="editarEtapaTemplate(${i})" title="Editar">
+          <button class="btn btn-icon btn-ghost btn-sm" onclick="editarEtapaTemplate(${idx})" title="Editar">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
           </button>
-          <button class="btn btn-icon btn-ghost btn-sm" onclick="removerEtapaTemplate(${i})" title="Remover">
+          <button class="btn btn-icon btn-ghost btn-sm" onclick="removerEtapaTemplate(${idx})" title="Remover">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--red-500)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
           </button>
         </div>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 let _editandoEtapaIdx = null;
 
-function adicionarEtapaTemplate() {
-  _editandoEtapaIdx = null;
+function _limparModalEtapa() {
   document.getElementById('templateEtapaNome').value = '';
   document.getElementById('templateEtapaDesc').value = '';
   document.getElementById('templateEtapaPrio').value = 'importante';
+  document.getElementById('templateEtapaDuracao').value = '';
+  document.getElementById('templateEtapaPrazoDias').value = '';
+  document.getElementById('templateEtapaSequencia').value = '';
+  document.getElementById('templateSubtarefasInput').innerHTML = '';
+}
+
+function adicionarCampoSubtarefaTemplate() {
+  const container = document.getElementById('templateSubtarefasInput');
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;gap:6px;align-items:center';
+  row.innerHTML = `
+    <input class="input" placeholder="Ex: Ligar para o cliente" style="flex:1">
+    <button type="button" class="btn btn-ghost btn-icon btn-sm" onclick="this.parentElement.remove()" style="flex-shrink:0">
+      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+    </button>`;
+  container.appendChild(row);
+  row.querySelector('input').focus();
+}
+
+function adicionarEtapaTemplate() {
+  _editandoEtapaIdx = null;
+  _limparModalEtapa();
   document.getElementById('modalTemplateEtapaTitulo').textContent = 'Nova Etapa';
   abrirModal('modalTemplateEtapa');
   setTimeout(() => document.getElementById('templateEtapaNome').focus(), 100);
@@ -1624,9 +1702,29 @@ function adicionarEtapaTemplate() {
 function editarEtapaTemplate(idx) {
   _editandoEtapaIdx = idx;
   const e = state._templateEtapas[idx];
+  _limparModalEtapa();
+
   document.getElementById('templateEtapaNome').value = e.titulo || '';
   document.getElementById('templateEtapaDesc').value = e.descricao || '';
   document.getElementById('templateEtapaPrio').value = e.prioridade || 'importante';
+  if (e.duracao_estimada != null) document.getElementById('templateEtapaDuracao').value = e.duracao_estimada;
+  if (e.prazo_dias != null) document.getElementById('templateEtapaPrazoDias').value = e.prazo_dias;
+  if (e.sequencia != null) document.getElementById('templateEtapaSequencia').value = e.sequencia;
+
+  // Carregar subtarefas existentes
+  const container = document.getElementById('templateSubtarefasInput');
+  container.innerHTML = '';
+  (e.subtarefas || []).forEach(s => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:6px;align-items:center';
+    row.innerHTML = `
+      <input class="input" value="${escHTML(s)}" style="flex:1">
+      <button type="button" class="btn btn-ghost btn-icon btn-sm" onclick="this.parentElement.remove()" style="flex-shrink:0">
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>`;
+    container.appendChild(row);
+  });
+
   document.getElementById('modalTemplateEtapaTitulo').textContent = 'Editar Etapa';
   abrirModal('modalTemplateEtapa');
   setTimeout(() => document.getElementById('templateEtapaNome').focus(), 100);
@@ -1636,11 +1734,23 @@ function salvarEtapaTemplate() {
   const titulo = document.getElementById('templateEtapaNome').value.trim();
   if (!titulo) { mostrarToast('Nome da etapa é obrigatório', 'error'); return; }
 
+  // Coletar subtarefas
+  const subInputs = document.getElementById('templateSubtarefasInput').querySelectorAll('input');
+  const subtarefas = Array.from(subInputs).map(i => i.value.trim()).filter(Boolean);
+
+  // Campos numéricos — null se vazio
+  const duracaoRaw  = document.getElementById('templateEtapaDuracao').value;
+  const prazoDiasRaw = document.getElementById('templateEtapaPrazoDias').value;
+  const seqRaw      = document.getElementById('templateEtapaSequencia').value;
+
   const etapa = {
     titulo,
-    descricao: document.getElementById('templateEtapaDesc').value.trim() || '',
-    prioridade: document.getElementById('templateEtapaPrio').value,
-    ordem: 0,
+    descricao:          document.getElementById('templateEtapaDesc').value.trim() || '',
+    prioridade:         document.getElementById('templateEtapaPrio').value,
+    duracao_estimada:   duracaoRaw !== '' ? parseFloat(duracaoRaw) : null,
+    prazo_dias:         prazoDiasRaw !== '' ? parseInt(prazoDiasRaw, 10) : null,
+    sequencia:          seqRaw !== '' ? parseInt(seqRaw, 10) : null,
+    subtarefas,
   };
 
   if (_editandoEtapaIdx !== null) {
@@ -1663,17 +1773,20 @@ async function salvarTemplateCompleto() {
   btn.disabled = true; btn.textContent = 'Salvando...';
 
   const conteudo = state._templateEtapas.map((e, i) => ({
-    titulo: e.titulo,
-    descricao: e.descricao || '',
-    prioridade: e.prioridade || 'importante',
-    ordem: i + 1,
+    titulo:            e.titulo,
+    descricao:         e.descricao || '',
+    prioridade:        e.prioridade || 'importante',
+    duracao_estimada:  e.duracao_estimada ?? null,
+    prazo_dias:        e.prazo_dias ?? null,
+    sequencia:         e.sequencia ?? null,
+    subtarefas:        e.subtarefas || [],
+    ordem:             i + 1,
   }));
 
   try {
     if (state._templateEditandoId) {
       await db.from('templates').update({ conteudo }).eq('id', state._templateEditandoId);
     } else {
-      // Fallback: salva no template planejado padrão
       const templateExistente = await getTemplatePlanejado();
       if (templateExistente) {
         await db.from('templates').update({ conteudo }).eq('id', templateExistente.id);
