@@ -210,6 +210,7 @@ async function getTemplatePlanejado() {
     .from('templates')
     .select('*')
     .eq('categoria', 'planejado')
+    .eq('ativo', true)
     .limit(1)
     .maybeSingle();
   if (error) return null;
