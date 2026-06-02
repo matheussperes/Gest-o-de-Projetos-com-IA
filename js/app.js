@@ -1108,8 +1108,8 @@ async function ciclaPrioridade(tarefaId, prioAtual) {
   }
 }
 
-function abrirModalEditarTarefa(tarefaId) {
-  // Busca a tarefa nas tarefas carregadas na lista do DOM
+async function abrirModalEditarTarefa(tarefaId) {
+  // Lê dados do DOM para campos simples
   const el = document.getElementById('tarefa-' + tarefaId);
   if (!el) return;
   const nome = el.querySelector('.tarefa-nome')?.textContent || '';
@@ -1126,13 +1126,56 @@ function abrirModalEditarTarefa(tarefaId) {
   document.getElementById('tarefaDescricao').value = desc;
   document.getElementById('tarefaPrioridade').value = prio;
   document.getElementById('tarefaStatus').value = 'pendente';
-  document.getElementById('subtarefasInput').innerHTML = '';
   _subtarefasInputCount = 0;
-  // Esconde campo subtarefas no modo edição (subtarefas têm fluxo próprio)
+
+  // Garante seção visível
   const subSection = document.getElementById('subtarefasInput')?.closest('.input-group');
-  if (subSection) subSection.style.display = 'none';
+  if (subSection) subSection.style.display = '';
+
+  // Carrega subtarefas existentes como linhas editáveis
+  const container = document.getElementById('subtarefasInput');
+  container.innerHTML = '';
+
+  try {
+    const { data: subs } = await db.from('subtarefas')
+      .select('id, nome, concluida')
+      .eq('tarefa_id', tarefaId)
+      .order('ordem', { ascending: true });
+
+    (subs || []).forEach(s => {
+      _subtarefasInputCount++;
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;gap:6px;align-items:center';
+      row.dataset.subtarefaId = s.id; // marca como existente
+      row.innerHTML = `
+        <input class="input" value="${escHTML(s.nome)}" style="flex:1" id="sub_${_subtarefasInputCount}" data-sub-id="${s.id}">
+        <button type="button" class="btn btn-ghost btn-icon btn-sm" title="Remover" onclick="marcarSubtarefaParaExcluir(this,'${s.id}')" style="flex-shrink:0">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>`;
+      container.appendChild(row);
+    });
+  } catch(e) {
+    // Se falhar silencia — modal ainda abre funcional
+  }
+
   abrirModal('modalTarefa');
   setTimeout(() => document.getElementById('tarefaNome').focus(), 100);
+}
+
+function marcarSubtarefaParaExcluir(btn, subId) {
+  const row = btn.parentElement;
+  // Toggle visual — linha riscada = marcada para excluir
+  if (row.dataset.deletar === 'true') {
+    row.dataset.deletar = 'false';
+    row.style.opacity = '1';
+    row.querySelector('input').style.textDecoration = '';
+    btn.title = 'Remover';
+  } else {
+    row.dataset.deletar = 'true';
+    row.style.opacity = '0.4';
+    row.querySelector('input').style.textDecoration = 'line-through';
+    btn.title = 'Desfazer remoção';
+  }
 }
 
 function abrirModalTarefa() {
@@ -1184,6 +1227,39 @@ async function salvarTarefa() {
         descricao: document.getElementById('tarefaDescricao').value.trim() || null,
         prioridade: document.getElementById('tarefaPrioridade').value,
       });
+
+      // Processar subtarefas do modal
+      const rows = document.getElementById('subtarefasInput').children;
+      const paraExcluir = [];
+      const paraAtualizar = [];
+      const paraInserir = [];
+
+      Array.from(rows).forEach(row => {
+        const input = row.querySelector('input');
+        const val = input?.value?.trim();
+        const subId = input?.dataset?.subId;
+
+        if (row.dataset.deletar === 'true' && subId) {
+          paraExcluir.push(subId);
+        } else if (subId && val) {
+          // Subtarefa existente — atualizar nome se mudou
+          paraAtualizar.push({ id: subId, nome: val });
+        } else if (!subId && val) {
+          // Nova subtarefa
+          paraInserir.push({ tarefa_id: state.editandoTarefaId, nome: val, concluida: false });
+        }
+      });
+
+      if (paraExcluir.length > 0) {
+        await db.from('subtarefas').delete().in('id', paraExcluir);
+      }
+      for (const s of paraAtualizar) {
+        await db.from('subtarefas').update({ nome: s.nome }).eq('id', s.id);
+      }
+      if (paraInserir.length > 0) {
+        await db.from('subtarefas').insert(paraInserir);
+      }
+
       mostrarToast('Tarefa atualizada!', 'success');
       fecharModal('modalTarefa');
       state.editandoTarefaId = null;
