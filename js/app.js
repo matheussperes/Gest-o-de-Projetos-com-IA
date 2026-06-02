@@ -1138,7 +1138,7 @@ async function abrirModalEditarTarefa(tarefaId) {
 
   try {
     const { data: subs } = await db.from('subtarefas')
-      .select('id, nome, concluida')
+      .select('id, titulo, concluida')
       .eq('tarefa_id', tarefaId)
       .order('ordem', { ascending: true });
 
@@ -1148,7 +1148,7 @@ async function abrirModalEditarTarefa(tarefaId) {
       row.style.cssText = 'display:flex;gap:6px;align-items:center';
       row.dataset.subtarefaId = s.id; // marca como existente
       row.innerHTML = `
-        <input class="input" value="${escHTML(s.nome)}" style="flex:1" id="sub_${_subtarefasInputCount}" data-sub-id="${s.id}">
+        <input class="input" value="${escHTML(s.titulo)}" style="flex:1" id="sub_${_subtarefasInputCount}" data-sub-id="${s.id}">
         <button type="button" class="btn btn-ghost btn-icon btn-sm" title="Remover" onclick="marcarSubtarefaParaExcluir(this,'${s.id}')" style="flex-shrink:0">
           <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
         </button>`;
@@ -1242,11 +1242,11 @@ async function salvarTarefa() {
         if (row.dataset.deletar === 'true' && subId) {
           paraExcluir.push(subId);
         } else if (subId && val) {
-          // Subtarefa existente — atualizar nome se mudou
-          paraAtualizar.push({ id: subId, nome: val });
+          // Subtarefa existente — atualizar titulo se mudou
+          paraAtualizar.push({ id: subId, titulo: val });
         } else if (!subId && val) {
           // Nova subtarefa
-          paraInserir.push({ tarefa_id: state.editandoTarefaId, nome: val, concluida: false });
+          paraInserir.push({ tarefa_id: state.editandoTarefaId, titulo: val, concluida: false });
         }
       });
 
@@ -1254,7 +1254,7 @@ async function salvarTarefa() {
         await db.from('subtarefas').delete().in('id', paraExcluir);
       }
       for (const s of paraAtualizar) {
-        await db.from('subtarefas').update({ nome: s.nome }).eq('id', s.id);
+        await db.from('subtarefas').update({ titulo: s.titulo }).eq('id', s.id);
       }
       if (paraInserir.length > 0) {
         await db.from('subtarefas').insert(paraInserir);
