@@ -118,6 +118,8 @@ function formatarContextoParaClaude(projetos) {
         titulo: t.titulo,
         prioridade: t.prioridade,
         status: t.status,
+        duracao_estimada: t.duracao_estimada || null,
+        data_limite: t.data_limite || null,
         subtarefasTotal: (t.subtarefas || []).length,
         subtarefasConcluidas: (t.subtarefas || []).filter(s => s.concluida).length,
       })),
