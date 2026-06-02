@@ -539,7 +539,10 @@ function renderizarTarefaItem(t) {
         </div>` : ''}
       </div>
       <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
-        <span class="badge badge-${t.prioridade || 'importante'}">${labelPrioridade(t.prioridade)}</span>
+        <span class="badge badge-${t.prioridade || 'importante'}" style="cursor:pointer" title="Clique para mudar prioridade" onclick="event.stopPropagation();ciclaPrioridade('${t.id}','${t.prioridade || 'importante'}')">${labelPrioridade(t.prioridade)}</span>
+        <button class="btn btn-icon btn-ghost" onclick="event.stopPropagation();abrirModalEditarTarefa('${t.id}')" title="Editar tarefa">
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+        </button>
         <button class="btn btn-icon btn-ghost" onclick="event.stopPropagation();concluirOuReabrirTarefa('${t.id}','${t.status}')" title="${isDone ? 'Reabrir' : 'Concluir'}">
           <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="${isDone ? 'var(--green-500)' : 'var(--text-tertiary)'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
         </button>
@@ -1084,6 +1087,54 @@ function restaurarProjeto(projetoId, nome) {
 
 let _subtarefasInputCount = 0;
 
+async function ciclaPrioridade(tarefaId, prioAtual) {
+  const ciclo = { urgente: 'importante', importante: 'espera', espera: 'urgente' };
+  const novaPrio = ciclo[prioAtual] || 'importante';
+  try {
+    await atualizarTarefa(tarefaId, { prioridade: novaPrio });
+    // Atualiza o badge na UI sem recarregar tudo
+    const el = document.getElementById('tarefa-' + tarefaId);
+    if (el) {
+      const badge = el.querySelector('.tarefa-header .badge');
+      if (badge) {
+        badge.className = `badge badge-${novaPrio}`;
+        badge.textContent = labelPrioridade(novaPrio);
+        badge.onclick = (e) => { e.stopPropagation(); ciclaPrioridade(tarefaId, novaPrio); };
+      }
+    }
+    await carregarTudo();
+  } catch(e) {
+    mostrarToast('Erro ao atualizar prioridade', 'error');
+  }
+}
+
+function abrirModalEditarTarefa(tarefaId) {
+  // Busca a tarefa nas tarefas carregadas na lista do DOM
+  const el = document.getElementById('tarefa-' + tarefaId);
+  if (!el) return;
+  const nome = el.querySelector('.tarefa-nome')?.textContent || '';
+  const desc = el.querySelector('.tarefa-body p')?.textContent || '';
+  const badgeClasses = el.querySelector('.tarefa-header .badge')?.className || '';
+  let prio = 'importante';
+  if (badgeClasses.includes('urgente')) prio = 'urgente';
+  else if (badgeClasses.includes('espera')) prio = 'espera';
+
+  state.editandoTarefaId = tarefaId;
+  document.getElementById('modalTarefaTitulo').textContent = 'Editar Tarefa';
+  document.getElementById('btnSalvarTarefa').textContent = 'Salvar Alterações';
+  document.getElementById('tarefaNome').value = nome;
+  document.getElementById('tarefaDescricao').value = desc;
+  document.getElementById('tarefaPrioridade').value = prio;
+  document.getElementById('tarefaStatus').value = 'pendente';
+  document.getElementById('subtarefasInput').innerHTML = '';
+  _subtarefasInputCount = 0;
+  // Esconde campo subtarefas no modo edição (subtarefas têm fluxo próprio)
+  const subSection = document.getElementById('subtarefasInput')?.closest('.input-group');
+  if (subSection) subSection.style.display = 'none';
+  abrirModal('modalTarefa');
+  setTimeout(() => document.getElementById('tarefaNome').focus(), 100);
+}
+
 function abrirModalTarefa() {
   state.editandoTarefaId = null;
   document.getElementById('modalTarefaTitulo').textContent = 'Nova Tarefa';
@@ -1094,6 +1145,9 @@ function abrirModalTarefa() {
   document.getElementById('tarefaStatus').value = 'pendente';
   document.getElementById('subtarefasInput').innerHTML = '';
   _subtarefasInputCount = 0;
+  // Restaura seção de subtarefas caso tenha sido ocultada pelo modo edição
+  const subSection = document.getElementById('subtarefasInput')?.closest('.input-group');
+  if (subSection) subSection.style.display = '';
   abrirModal('modalTarefa');
 }
 
@@ -1114,39 +1168,58 @@ function adicionarCampoSubtarefa() {
 async function salvarTarefa() {
   const nome = document.getElementById('tarefaNome').value.trim();
   if (!nome) { mostrarToast('Nome da tarefa é obrigatório', 'error'); return; }
-  if (!state.projetoAtual) { mostrarToast('Nenhum projeto selecionado', 'error'); return; }
 
   const btn = document.getElementById('btnSalvarTarefa');
   btn.disabled = true; btn.textContent = 'Salvando...';
 
-  const payload = {
-    projeto_id: state.projetoAtual.id,
-    titulo: nome,
-    descricao: document.getElementById('tarefaDescricao').value.trim() || null,
-    prioridade: document.getElementById('tarefaPrioridade').value,
-    status: document.getElementById('tarefaStatus').value,
-  };
+  // Restaurar visibilidade da seção subtarefas (pode ter sido ocultada no modo edição)
+  const subSection = document.getElementById('subtarefasInput')?.closest('.input-group');
+  if (subSection) subSection.style.display = '';
 
   try {
-    const tarefa = await criarTarefa(payload);
+    if (state.editandoTarefaId) {
+      // MODO EDIÇÃO
+      await atualizarTarefa(state.editandoTarefaId, {
+        titulo: nome,
+        descricao: document.getElementById('tarefaDescricao').value.trim() || null,
+        prioridade: document.getElementById('tarefaPrioridade').value,
+      });
+      mostrarToast('Tarefa atualizada!', 'success');
+      fecharModal('modalTarefa');
+      state.editandoTarefaId = null;
+      await carregarTudo();
+      if (state.projetoAtual) carregarTarefasDoProjeto(state.projetoAtual.id);
+    } else {
+      // MODO CRIAÇÃO
+      if (!state.projetoAtual) { mostrarToast('Nenhum projeto selecionado', 'error'); return; }
+      const payload = {
+        projeto_id: state.projetoAtual.id,
+        titulo: nome,
+        descricao: document.getElementById('tarefaDescricao').value.trim() || null,
+        prioridade: document.getElementById('tarefaPrioridade').value,
+        status: document.getElementById('tarefaStatus').value,
+      };
+      const tarefa = await criarTarefa(payload);
 
-    // Cria subtarefas
-    const inputs = document.getElementById('subtarefasInput').querySelectorAll('input');
-    const subs = [];
-    inputs.forEach(inp => {
-      const val = inp.value.trim();
-      if (val) subs.push({ tarefa_id: tarefa.id, titulo: val, concluida: false });
-    });
-    if (subs.length > 0) await db.from('subtarefas').insert(subs);
+      // Cria subtarefas
+      const inputs = document.getElementById('subtarefasInput').querySelectorAll('input');
+      const subs = [];
+      inputs.forEach(inp => {
+        const val = inp.value.trim();
+        if (val) subs.push({ tarefa_id: tarefa.id, titulo: val, concluida: false });
+      });
+      if (subs.length > 0) await db.from('subtarefas').insert(subs);
 
-    mostrarToast('Tarefa criada!', 'success');
-    fecharModal('modalTarefa');
-    await carregarTudo();
-    carregarTarefasDoProjeto(state.projetoAtual.id);
+      mostrarToast('Tarefa criada!', 'success');
+      fecharModal('modalTarefa');
+      await carregarTudo();
+      carregarTarefasDoProjeto(state.projetoAtual.id);
+    }
   } catch(e) {
-    mostrarToast('Erro ao criar tarefa: ' + e.message, 'error');
+    mostrarToast('Erro ao salvar tarefa: ' + e.message, 'error');
   } finally {
-    btn.disabled = false; btn.textContent = 'Criar Tarefa';
+    btn.disabled = false;
+    btn.textContent = state.editandoTarefaId ? 'Salvar Alterações' : 'Criar Tarefa';
   }
 }
 
