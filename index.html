@@ -261,6 +261,11 @@
         <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg>
         Copiloto IA
       </button>
+
+      <button class="nav-item" onclick="abrirGerenciadorTemplate()">
+        <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        Template Planejado
+      </button>
     </nav>
 
     <div class="sidebar-footer">
@@ -448,6 +453,37 @@
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- ══════ VIEW: TEMPLATE PLANEJADO ══════ -->
+      <div class="view" id="view-template">
+        <button class="back-btn" onclick="navegarPara('projetos', document.querySelector('.nav-item[data-view=projetos]'))">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+          Voltar
+        </button>
+
+        <div style="background:var(--green-50);border:1px solid var(--green-100);border-radius:var(--radius-lg);padding:16px;margin-bottom:20px">
+          <p style="font-size:var(--text-sm);color:var(--green-700);line-height:1.6">
+            <strong>Como funciona:</strong> Estas etapas são aplicadas automaticamente em todo novo projeto de Móvel Planejado. Edite, adicione ou remova etapas conforme seu processo. Clique em <strong>Salvar Template</strong> para persistir as mudanças.
+          </p>
+        </div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+          <span class="section-title">Etapas do template</span>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-secondary btn-sm" onclick="adicionarEtapaTemplate()">
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+              Nova Etapa
+            </button>
+            <button class="btn btn-primary btn-sm" onclick="salvarTemplateCompleto()" id="btnSalvarTemplate">
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+              Salvar Template
+            </button>
+          </div>
+        </div>
+
+        <div id="templateLoading" class="loading-center"><div class="spinner"></div></div>
+        <div id="templateEtapasList"></div>
       </div>
 
     </main>
@@ -715,6 +751,74 @@
     <div class="modal-body" id="modalKPIConteudo" style="max-height:420px;overflow-y:auto"></div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="fecharModal('modalKPI')">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Editar Compra -->
+<div class="modal-overlay" id="modalEditarCompra">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 class="modal-title">Editar Item</h2>
+      <button class="modal-close" onclick="fecharModal('modalEditarCompra')">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="input-group">
+          <label class="input-label required">Item a comprar</label>
+          <input class="input" id="editCompraNome" placeholder="Ex: Puxadores inox 128mm">
+        </div>
+        <div class="input-group">
+          <label class="input-label">Fornecedor / Link</label>
+          <input class="input" id="editCompraFornecedor" placeholder="Mercado Livre, Amazon...">
+        </div>
+        <div class="input-group">
+          <label class="input-label">Valor estimado</label>
+          <input class="input" type="number" id="editCompraValor" placeholder="0.00" step="0.01">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="fecharModal('modalEditarCompra')">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarEdicaoCompra()" id="btnSalvarEdicaoCompra">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Editar Etapa do Template -->
+<div class="modal-overlay" id="modalTemplateEtapa">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 class="modal-title" id="modalTemplateEtapaTitulo">Nova Etapa</h2>
+      <button class="modal-close" onclick="fecharModal('modalTemplateEtapa')">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="input-group">
+          <label class="input-label required">Nome da etapa</label>
+          <input class="input" id="templateEtapaNome" placeholder="Ex: Briefing com o cliente">
+        </div>
+        <div class="input-group">
+          <label class="input-label">Prioridade</label>
+          <select class="select" id="templateEtapaPrio">
+            <option value="urgente">🔴 Urgente</option>
+            <option value="importante" selected>🟡 Importante</option>
+            <option value="espera">⚪ Pode esperar</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <label class="input-label">Descrição</label>
+          <textarea class="input" id="templateEtapaDesc" rows="2" placeholder="Detalhes desta etapa..."></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="fecharModal('modalTemplateEtapa')">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarEtapaTemplate()">Salvar Etapa</button>
     </div>
   </div>
 </div>
