@@ -53,15 +53,15 @@ function navegarPara(view, btn) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.getElementById('view-' + view).classList.add('active');
 
-  // Atualiza nav sidebar
-  document.querySelectorAll('.nav-item[data-view], .bottom-nav-item[data-view]').forEach(b => b.classList.remove('active'));
+  // Limpa todos os nav items (data-view e data-nav)
+  document.querySelectorAll('.nav-item, .bottom-nav-item').forEach(b => b.classList.remove('active'));
+
+  // Ativa o botão clicado
   if (btn) btn.classList.add('active');
 
-  // Atualiza bottom nav também
+  // Sincroniza bottom nav e sidebar por data-view
   document.querySelectorAll(`.bottom-nav-item[data-view="${view}"]`).forEach(b => b.classList.add('active'));
   document.querySelectorAll(`.nav-item[data-view="${view}"]`).forEach(b => b.classList.add('active'));
-
-  // Carregar linha do tempo ao navegar para ela (removido — agora integrado ao projeto)
 
   // Header
   const titulos = { hoje: 'Hoje', projetos: 'Projetos' };
@@ -859,9 +859,48 @@ async function carregarTarefasDoProjeto(projetoId) {
       return;
     }
 
-    lista.innerHTML = tarefas.map(t => renderizarTarefaItem(t)).join('');
+    // Separar pendentes e concluídas
+    const pendentes = tarefas.filter(t => t.status !== 'concluida');
+    const feitas    = tarefas.filter(t => t.status === 'concluida');
 
-    // Atualiza bloco de carga com dados completos das tarefas (duração_estimada incluída)
+    // Ordenar pendentes: sequenciadas primeiro (por sequencia asc), depois por created_at
+    const ordenarTarefas = (arr) => {
+      const comSeq  = arr.filter(t => t.sequencia != null).sort((a, b) => a.sequencia - b.sequencia);
+      const semSeq  = arr.filter(t => t.sequencia == null);
+      return [...comSeq, ...semSeq];
+    };
+
+    const pendentesSorted = ordenarTarefas(pendentes);
+    // Feitas: mais recentemente concluída por último (ordem de criação)
+    const feitasSorted = [...feitas];
+
+    lista.innerHTML = `
+      <div class="tarefas-colunas">
+        <div>
+          <div class="tarefas-coluna-header">
+            <span class="tarefas-coluna-titulo">Pendentes</span>
+            <span class="tarefas-coluna-count">${pendentes.length}</span>
+          </div>
+          <div id="colPendentes">
+            ${pendentesSorted.length > 0
+              ? pendentesSorted.map(t => renderizarTarefaItem(t)).join('')
+              : '<p style="font-size:var(--text-xs);color:var(--text-tertiary);padding:12px 0">Nenhuma tarefa pendente. 🎉</p>'}
+          </div>
+        </div>
+        <div>
+          <div class="tarefas-coluna-header feitas">
+            <span class="tarefas-coluna-titulo" style="color:var(--text-secondary)">Feitas</span>
+            <span class="tarefas-coluna-count">${feitas.length}</span>
+          </div>
+          <div id="colFeitas">
+            ${feitasSorted.length > 0
+              ? feitasSorted.map(t => renderizarTarefaItem(t)).join('')
+              : '<p style="font-size:var(--text-xs);color:var(--text-tertiary);padding:12px 0">Nenhuma tarefa concluída ainda.</p>'}
+          </div>
+        </div>
+      </div>`;
+
+    // Atualiza bloco de carga com dados completos das tarefas
     if (state.projetoAtual) {
       const projetoComTarefas = { ...state.projetoAtual, tarefas };
       renderizarCargaTrabalho(projetoComTarefas);
@@ -1270,6 +1309,11 @@ async function abrirGerenciadorTemplate() {
   document.getElementById('view-template').classList.add('active');
   document.getElementById('headerTitle').textContent = 'Template: Móvel Planejado';
   document.getElementById('headerSubtitle').textContent = 'Etapas aplicadas em todo novo projeto planejado';
+
+  // Ativar nav item correto
+  document.querySelectorAll('.nav-item, .bottom-nav-item').forEach(b => b.classList.remove('active'));
+  document.querySelector('.nav-item[data-nav="template"]')?.classList.add('active');
+
   fecharSidebar();
   await carregarEtapasTemplate();
 }
@@ -1522,6 +1566,7 @@ async function abrirModalEditarTarefa(tarefaId) {
   document.getElementById('tarefaStatus').value = 'pendente';
   document.getElementById('tarefaDuracao').value = '';
   document.getElementById('tarefaDataLimite').value = '';
+  document.getElementById('tarefaSequencia').value = '';
   _subtarefasInputCount = 0;
 
   // Garante seção visível
@@ -1533,9 +1578,9 @@ async function abrirModalEditarTarefa(tarefaId) {
   container.innerHTML = '';
 
   try {
-    // Busca dados completos da tarefa para preencher duracao e data_limite
+    // Busca dados completos da tarefa para preencher duracao, data_limite e sequencia
     const { data: tarefaData } = await db.from('tarefas')
-      .select('duracao_estimada, data_limite, status')
+      .select('duracao_estimada, data_limite, status, sequencia')
       .eq('id', tarefaId)
       .single();
 
@@ -1543,6 +1588,7 @@ async function abrirModalEditarTarefa(tarefaId) {
       if (tarefaData.duracao_estimada) document.getElementById('tarefaDuracao').value = tarefaData.duracao_estimada;
       if (tarefaData.data_limite) document.getElementById('tarefaDataLimite').value = tarefaData.data_limite;
       if (tarefaData.status) document.getElementById('tarefaStatus').value = tarefaData.status;
+      if (tarefaData.sequencia != null) document.getElementById('tarefaSequencia').value = tarefaData.sequencia;
     }
 
     const { data: subs } = await db.from('subtarefas')
@@ -1596,9 +1642,9 @@ function abrirModalTarefa() {
   document.getElementById('tarefaStatus').value = 'pendente';
   document.getElementById('tarefaDuracao').value = '';
   document.getElementById('tarefaDataLimite').value = '';
+  document.getElementById('tarefaSequencia').value = '';
   document.getElementById('subtarefasInput').innerHTML = '';
   _subtarefasInputCount = 0;
-  // Restaura seção de subtarefas caso tenha sido ocultada pelo modo edição
   const subSection = document.getElementById('subtarefasInput')?.closest('.input-group');
   if (subSection) subSection.style.display = '';
   abrirModal('modalTarefa');
@@ -1634,12 +1680,15 @@ async function salvarTarefa() {
       // MODO EDIÇÃO
       const duracaoVal = parseFloat(document.getElementById('tarefaDuracao').value) || null;
       const dataLimiteVal = document.getElementById('tarefaDataLimite').value || null;
+      const seqRaw = document.getElementById('tarefaSequencia').value;
+      const seqVal = seqRaw !== '' ? parseInt(seqRaw, 10) : null;
       await atualizarTarefa(state.editandoTarefaId, {
         titulo: nome,
         descricao: document.getElementById('tarefaDescricao').value.trim() || null,
         prioridade: document.getElementById('tarefaPrioridade').value,
         ...(duracaoVal !== null && { duracao_estimada: duracaoVal }),
         ...(dataLimiteVal !== null && { data_limite: dataLimiteVal }),
+        sequencia: seqVal,
       });
 
       // Processar subtarefas do modal
@@ -1684,6 +1733,8 @@ async function salvarTarefa() {
       if (!state.projetoAtual) { mostrarToast('Nenhum projeto selecionado', 'error'); return; }
       const duracaoVal = parseFloat(document.getElementById('tarefaDuracao').value) || null;
       const dataLimiteVal = document.getElementById('tarefaDataLimite').value || null;
+      const seqRaw = document.getElementById('tarefaSequencia').value;
+      const seqVal = seqRaw !== '' ? parseInt(seqRaw, 10) : null;
       const payload = {
         projeto_id: state.projetoAtual.id,
         titulo: nome,
@@ -1692,6 +1743,7 @@ async function salvarTarefa() {
         status: document.getElementById('tarefaStatus').value,
         duracao_estimada: duracaoVal,
         data_limite: dataLimiteVal,
+        sequencia: seqVal,
       };
       const tarefa = await criarTarefa(payload);
 
@@ -1841,11 +1893,23 @@ function abrirCopiloto() {
   document.getElementById('copiloPanel').classList.add('open');
   document.getElementById('copiloOverlay').style.display = '';
   document.getElementById('copiloContexto').focus();
+
+  // Ativar nav item copiloto
+  document.querySelectorAll('.nav-item, .bottom-nav-item').forEach(b => b.classList.remove('active'));
+  document.querySelector('.nav-item[data-nav="copiloto"]')?.classList.add('active');
 }
 
 function fecharCopiloto() {
   document.getElementById('copiloPanel').classList.remove('open');
   document.getElementById('copiloOverlay').style.display = 'none';
+
+  // Restaurar nav item da view atual
+  const viewAtiva = document.querySelector('.view.active');
+  if (viewAtiva) {
+    const viewId = viewAtiva.id.replace('view-', '');
+    document.querySelectorAll('.nav-item, .bottom-nav-item').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll(`[data-view="${viewId}"]`).forEach(b => b.classList.add('active'));
+  }
 }
 
 /* ═══════════════════════════════════════
