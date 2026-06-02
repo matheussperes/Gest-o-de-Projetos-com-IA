@@ -164,6 +164,151 @@
       letter-spacing: 0.03em;
     }
 
+    /* ─── Linha do Tempo ─── */
+    .timeline-kpis {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .timeline-kpi-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 12px 14px;
+      text-align: center;
+    }
+    .timeline-kpi-val {
+      font-size: var(--text-xl);
+      font-weight: 700;
+      color: var(--text-primary);
+      line-height: 1.2;
+    }
+    .timeline-kpi-val.danger { color: var(--red-500); }
+    .timeline-kpi-lbl {
+      font-size: var(--text-xs);
+      color: var(--text-tertiary);
+      margin-top: 2px;
+    }
+    .timeline-projeto-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 16px;
+      margin-bottom: 12px;
+      transition: box-shadow var(--transition);
+    }
+    .timeline-projeto-card:hover { box-shadow: var(--shadow-md); }
+    .timeline-projeto-card.risco { border-left: 3px solid var(--red-500); }
+    .timeline-projeto-card.atencao { border-left: 3px solid var(--amber-500); }
+    .timeline-projeto-card.ok { border-left: 3px solid var(--green-500); }
+    .timeline-projeto-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+    .timeline-projeto-nome {
+      font-size: var(--text-base);
+      font-weight: 600;
+      color: var(--text-primary);
+      cursor: pointer;
+    }
+    .timeline-projeto-nome:hover { color: var(--green-600); }
+    .timeline-meta {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    .timeline-meta-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: var(--text-xs);
+      color: var(--text-secondary);
+    }
+    .timeline-meta-item svg { flex-shrink: 0; }
+    .timeline-bar-wrap { margin-bottom: 10px; }
+    .timeline-track {
+      height: 8px;
+      background: var(--bg-muted);
+      border-radius: var(--radius-full);
+      overflow: hidden;
+    }
+    .timeline-fill {
+      height: 100%;
+      border-radius: var(--radius-full);
+      transition: width 0.4s ease;
+    }
+    .timeline-bar-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: var(--text-tertiary);
+      margin-top: 4px;
+    }
+    .timeline-alerta {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      background: var(--amber-50);
+      border: 1px solid var(--amber-100);
+      border-radius: var(--radius-md);
+      padding: 8px 12px;
+      margin-bottom: 10px;
+    }
+    .timeline-alerta svg { flex-shrink: 0; margin-top: 1px; }
+    .timeline-alerta-text { font-size: var(--text-xs); color: var(--amber-700); line-height: 1.5; }
+    .timeline-alerta.danger {
+      background: var(--red-50);
+      border-color: var(--red-100);
+    }
+    .timeline-alerta.danger .timeline-alerta-text { color: var(--red-600); }
+    .timeline-tarefas-lista {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      border-top: 1px solid var(--border);
+      padding-top: 10px;
+    }
+    .timeline-tarefa-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 0;
+    }
+    .timeline-tarefa-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .timeline-tarefa-nome {
+      flex: 1;
+      font-size: var(--text-sm);
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .timeline-tarefa-dur {
+      font-size: var(--text-xs);
+      color: var(--text-tertiary);
+      white-space: nowrap;
+    }
+    .timeline-tarefa-badge {
+      font-size: 10px;
+      padding: 2px 7px;
+      border-radius: var(--radius-full);
+      font-weight: 500;
+      white-space: nowrap;
+    }
+    .timeline-tarefa-badge.ok { background: var(--green-100); color: var(--green-700); }
+    .timeline-tarefa-badge.warn { background: var(--amber-100); color: var(--amber-700); }
+    .timeline-tarefa-badge.late { background: var(--red-100); color: var(--red-600); }
+    .timeline-tarefa-badge.sem-prazo { background: var(--gray-100); color: var(--gray-500); }
+
     /* KPI cards clicáveis */
     .kpi-card {
       cursor: pointer;
@@ -256,6 +401,11 @@
       </button>
 
       <div class="nav-section-label">Ferramentas</div>
+
+      <button class="nav-item" data-view="linha-do-tempo" onclick="navegarPara('linha-do-tempo', this)">
+        <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        Linha do Tempo
+      </button>
 
       <button class="nav-item" onclick="abrirCopiloto(); fecharSidebar()">
         <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg>
@@ -393,6 +543,22 @@
             </button>
           </div>
         </div>
+      </div>
+
+      <!-- ══════ VIEW: LINHA DO TEMPO ══════ -->
+      <div class="view" id="view-linha-do-tempo">
+        <div id="timelineLoading" class="loading-center"><div class="spinner"></div><span>Carregando...</span></div>
+        <div id="timelineVazio" style="display:none">
+          <div class="empty-state">
+            <div class="empty-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            </div>
+            <div class="empty-title">Nenhum projeto com prazo definido</div>
+            <div class="empty-desc">Defina uma data de entrega nos seus projetos para ver a linha do tempo.</div>
+          </div>
+        </div>
+        <div id="timelineKPIs" class="timeline-kpis" style="display:none"></div>
+        <div id="timelineContent"></div>
       </div>
 
       <!-- ══════ VIEW: PROJETO DETALHE ══════ -->
@@ -642,6 +808,18 @@
         <div class="input-group">
           <label class="input-label">Descrição</label>
           <textarea class="input" id="tarefaDescricao" rows="2" placeholder="Detalhes desta tarefa..."></textarea>
+        </div>
+
+        <!-- Campos de planejamento temporal -->
+        <div class="form-grid" style="grid-template-columns:1fr 1fr">
+          <div class="input-group">
+            <label class="input-label">Duração estimada (horas)</label>
+            <input class="input" type="number" id="tarefaDuracao" placeholder="Ex: 2.5" step="0.5" min="0">
+          </div>
+          <div class="input-group">
+            <label class="input-label">Prazo interno</label>
+            <input class="input" type="date" id="tarefaDataLimite">
+          </div>
         </div>
 
         <!-- Subtarefas inline -->
