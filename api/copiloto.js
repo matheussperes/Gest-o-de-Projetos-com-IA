@@ -105,7 +105,7 @@ Analise e me diga: quais são as 3 ações mais importantes que devo fazer agora
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
+        model: 'claude-sonnet-4-5',
         max_tokens: 1024,
         system: systemPrompt,
         messages: [
