@@ -69,7 +69,7 @@ async function getTarefasPorProjeto(projetoId) {
     .from('tarefas')
     .select('*, subtarefas(*)')
     .eq('projeto_id', projetoId)
-    .order('ordem', { ascending: true })
+    .order('sequencia', { ascending: true, nullsFirst: false })
     .order('created_st', { ascending: true });
   if (error) throw error;
   return data || [];
