@@ -169,4 +169,3 @@ Analise e me diga: quais são as 3 ações mais importantes que devo fazer agora
     });
   }
 }
-
