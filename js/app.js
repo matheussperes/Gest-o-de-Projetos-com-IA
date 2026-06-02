@@ -299,7 +299,7 @@ function renderizarHoje() {
     <div class="hoje-card" onclick="irParaTarefa('${t.projetoId}', '${t.id}')">
       <div class="hoje-card-priority priority-${t.prioridade || 'importante'}"></div>
       <div class="hoje-card-content">
-        <div class="hoje-card-tarefa-titulo">${escHTML(t.titulo)}</div>
+        <div class="hoje-card-tarefa">${escHTML(t.titulo)}</div>
         <div class="hoje-card-projeto">${escHTML(t.projetoNome)}</div>
         <div class="hoje-card-meta">
           <span class="badge badge-${t.prioridade || 'importante'}">${labelPrioridade(t.prioridade)}</span>
@@ -397,13 +397,13 @@ function renderizarProjetoCard(p) {
           <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
         </button>
         <button class="btn btn-icon btn-ghost" onclick="event.stopPropagation();confirmarExcluirProjeto('${p.id}','${escAttr(p.nome)}')" title="Excluir permanentemente">
-          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--red-500)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
         </button>` : `
         <button class="btn btn-icon btn-ghost" onclick="event.stopPropagation();confirmarArquivar('${p.id}', '${escAttr(p.nome)}')" title="Arquivar">
           <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/></svg>
         </button>
         <button class="btn btn-icon btn-ghost" onclick="event.stopPropagation();confirmarExcluirProjeto('${p.id}','${escAttr(p.nome)}')" title="Excluir permanentemente">
-          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--red-500)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
         </button>`}
       </div>
     </div>
@@ -660,11 +660,14 @@ async function carregarComprasDoProjeto(projetoId) {
         <div class="checkbox${c.status === 'comprado' ? ' checked' : ''}" onclick="toggleCompraUI('${c.id}','${c.status}','${projetoId}')">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
         </div>
-        <div style="flex:1;min-width:0">
+        <div style="flex:1;min-width:0;cursor:pointer" onclick="abrirModalEditarCompra('${c.id}','${projetoId}')">
           <div class="compra-nome${c.status === 'comprado' ? ' done' : ''}">${escHTML(c.descricao || c.fornecedor || 'Item')}</div>
           ${c.fornecedor ? `<div style="font-size:var(--text-xs);color:var(--text-tertiary)">${escHTML(c.fornecedor)}</div>` : ''}
         </div>
         ${c.valor ? `<span style="font-size:var(--text-xs);font-weight:500;color:var(--green-600);white-space:nowrap">R$ ${Number(c.valor).toLocaleString('pt-BR',{minimumFractionDigits:2})}</span>` : ''}
+        <button class="btn btn-icon btn-ghost btn-sm" onclick="abrirModalEditarCompra('${c.id}','${projetoId}')" title="Editar" style="opacity:0.6">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+        </button>
         <button class="btn btn-icon btn-ghost btn-sm" onclick="confirmarExcluirCompra('${c.id}','${projetoId}')" title="Remover" style="opacity:0.5">
           <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
         </button>
@@ -682,6 +685,49 @@ async function toggleCompraUI(compraId, statusAtual, projetoId) {
     carregarTudo();
   } catch(e) {
     mostrarToast('Erro ao atualizar item', 'error');
+  }
+}
+
+let _editandoCompraId = null;
+let _editandoCompraProjetoId = null;
+
+async function abrirModalEditarCompra(compraId, projetoId) {
+  _editandoCompraId = compraId;
+  _editandoCompraProjetoId = projetoId;
+
+  // Busca dados atuais da compra
+  const { data, error } = await db.from('compras_extras').select('*').eq('id', compraId).single();
+  if (error || !data) { mostrarToast('Erro ao carregar item', 'error'); return; }
+
+  document.getElementById('editCompraNome').value = data.descricao || '';
+  document.getElementById('editCompraFornecedor').value = data.fornecedor || '';
+  document.getElementById('editCompraValor').value = data.valor || '';
+  abrirModal('modalEditarCompra');
+  setTimeout(() => document.getElementById('editCompraNome').focus(), 100);
+}
+
+async function salvarEdicaoCompra() {
+  const desc = document.getElementById('editCompraNome').value.trim();
+  if (!desc) { mostrarToast('Descreva o item', 'error'); return; }
+
+  const btn = document.getElementById('btnSalvarEdicaoCompra');
+  btn.disabled = true; btn.textContent = 'Salvando...';
+
+  try {
+    await db.from('compras_extras').update({
+      descricao: desc,
+      fornecedor: document.getElementById('editCompraFornecedor').value.trim() || null,
+      valor: parseFloat(document.getElementById('editCompraValor').value) || null,
+    }).eq('id', _editandoCompraId);
+
+    mostrarToast('Item atualizado!', 'success');
+    fecharModal('modalEditarCompra');
+    carregarComprasDoProjeto(_editandoCompraProjetoId);
+    await carregarTudo();
+  } catch(e) {
+    mostrarToast('Erro ao salvar item', 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Salvar';
   }
 }
 
@@ -793,20 +839,179 @@ async function salvarProjeto() {
 }
 
 async function criarTemplateEtapasPlanejado(projetoId) {
-  const etapas = [
-    { titulo: 'Briefing com o cliente', descricao: 'Coletar medidas do ambiente, estilo desejado, referências e necessidades.', prioridade: 'urgente' },
-    { titulo: 'Projeto no SketchUp', descricao: 'Criar visualização 3D conforme briefing e alinhá-la com o cliente.', prioridade: 'urgente' },
-    { titulo: 'Orçamento e proposta', descricao: 'Calcular custo de material, mão de obra e definir margem. Enviar proposta.', prioridade: 'urgente' },
-    { titulo: 'Contrato assinado', descricao: 'Formalizar o acordo, receber 50% do valor combinado.', prioridade: 'urgente' },
-    { titulo: 'Pedido de material', descricao: 'Enviar plano de corte ao parceiro e fechar pedido com fornecedor.', prioridade: 'importante' },
-    { titulo: 'Compras extras', descricao: 'Adquirir puxadores, vidros, espelhos e demais itens fora do fornecedor padrão.', prioridade: 'importante' },
-    { titulo: 'Pré-montagem na marcenaria', descricao: 'Acompanhar montagem, conferir medidas e acabamento.', prioridade: 'importante' },
-    { titulo: 'Entrega e instalação', descricao: 'Organizar frete, agendar instalação com parceiro e confirmar com o cliente.', prioridade: 'urgente' },
-    { titulo: 'Pagamento final e encerramento', descricao: 'Receber os 50% restantes e documentar o projeto concluído.', prioridade: 'importante' },
-  ];
+  // Tenta usar o template salvo no banco primeiro
+  const templateSalvo = await getTemplatePlanejado();
+  let etapas;
 
-  const payload = etapas.map(e => ({ ...e, projeto_id: projetoId, status: 'pendente' }));
+  if (templateSalvo && templateSalvo.conteudo && templateSalvo.conteudo.length > 0) {
+    etapas = templateSalvo.conteudo;
+  } else {
+    // Fallback: etapas padrão hardcoded
+    etapas = [
+      { titulo: 'Briefing com o cliente', descricao: 'Coletar medidas do ambiente, estilo desejado, referências e necessidades.', prioridade: 'urgente' },
+      { titulo: 'Projeto no SketchUp', descricao: 'Criar visualização 3D conforme briefing e alinhá-la com o cliente.', prioridade: 'urgente' },
+      { titulo: 'Orçamento e proposta', descricao: 'Calcular custo de material, mão de obra e definir margem. Enviar proposta.', prioridade: 'urgente' },
+      { titulo: 'Contrato assinado', descricao: 'Formalizar o acordo, receber 50% do valor combinado.', prioridade: 'urgente' },
+      { titulo: 'Pedido de material', descricao: 'Enviar plano de corte ao parceiro e fechar pedido com fornecedor.', prioridade: 'importante' },
+      { titulo: 'Compras extras', descricao: 'Adquirir puxadores, vidros, espelhos e demais itens fora do fornecedor padrão.', prioridade: 'importante' },
+      { titulo: 'Pré-montagem na marcenaria', descricao: 'Acompanhar montagem, conferir medidas e acabamento.', prioridade: 'importante' },
+      { titulo: 'Entrega e instalação', descricao: 'Organizar frete, agendar instalação com parceiro e confirmar com o cliente.', prioridade: 'urgente' },
+      { titulo: 'Pagamento final e encerramento', descricao: 'Receber os 50% restantes e documentar o projeto concluído.', prioridade: 'importante' },
+    ];
+  }
+
+  const payload = etapas.map(e => ({ titulo: e.titulo, descricao: e.descricao || '', prioridade: e.prioridade || 'importante', projeto_id: projetoId, status: 'pendente', ordem: e.ordem || 0 }));
   await db.from('tarefas').insert(payload);
+}
+
+/* ═══════════════════════════════════════
+   GERENCIADOR DE TEMPLATE — Planejados
+═══════════════════════════════════════ */
+
+async function abrirGerenciadorTemplate() {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-template').classList.add('active');
+  document.getElementById('headerTitle').textContent = 'Template: Móvel Planejado';
+  document.getElementById('headerSubtitle').textContent = 'Etapas aplicadas em todo novo projeto planejado';
+  fecharSidebar();
+  await carregarEtapasTemplate();
+}
+
+async function carregarEtapasTemplate() {
+  const lista = document.getElementById('templateEtapasList');
+  const loading = document.getElementById('templateLoading');
+  loading.style.display = '';
+  lista.innerHTML = '';
+
+  const templateSalvo = await getTemplatePlanejado();
+  let etapas = [];
+
+  if (templateSalvo && templateSalvo.conteudo && templateSalvo.conteudo.length > 0) {
+    etapas = templateSalvo.conteudo;
+  } else {
+    etapas = [
+      { titulo: 'Briefing com o cliente', descricao: 'Coletar medidas do ambiente, estilo desejado, referências e necessidades.', prioridade: 'urgente', ordem: 1 },
+      { titulo: 'Projeto no SketchUp', descricao: 'Criar visualização 3D conforme briefing e alinhá-la com o cliente.', prioridade: 'urgente', ordem: 2 },
+      { titulo: 'Orçamento e proposta', descricao: 'Calcular custo de material, mão de obra e definir margem. Enviar proposta.', prioridade: 'urgente', ordem: 3 },
+      { titulo: 'Contrato assinado', descricao: 'Formalizar o acordo, receber 50% do valor combinado.', prioridade: 'urgente', ordem: 4 },
+      { titulo: 'Pedido de material', descricao: 'Enviar plano de corte ao parceiro e fechar pedido com fornecedor.', prioridade: 'importante', ordem: 5 },
+      { titulo: 'Compras extras', descricao: 'Adquirir puxadores, vidros, espelhos e demais itens fora do fornecedor padrão.', prioridade: 'importante', ordem: 6 },
+      { titulo: 'Pré-montagem na marcenaria', descricao: 'Acompanhar montagem, conferir medidas e acabamento.', prioridade: 'importante', ordem: 7 },
+      { titulo: 'Entrega e instalação', descricao: 'Organizar frete, agendar instalação com parceiro e confirmar com o cliente.', prioridade: 'urgente', ordem: 8 },
+      { titulo: 'Pagamento final e encerramento', descricao: 'Receber os 50% restantes e documentar o projeto concluído.', prioridade: 'importante', ordem: 9 },
+    ];
+  }
+
+  state._templateEtapas = etapas.map((e, i) => ({ ...e, _idx: i }));
+  loading.style.display = 'none';
+  renderizarEtapasTemplate();
+}
+
+function renderizarEtapasTemplate() {
+  const lista = document.getElementById('templateEtapasList');
+  const etapas = state._templateEtapas || [];
+  const prioClass = { urgente: 'badge-urgente', importante: 'badge-importante', espera: 'badge-espera' };
+
+  if (etapas.length === 0) {
+    lista.innerHTML = `<div class="empty-state" style="padding:32px"><div class="empty-title">Sem etapas</div><div class="empty-desc">Adicione etapas ao template.</div></div>`;
+    return;
+  }
+
+  lista.innerHTML = etapas.map((e, i) => `
+    <div class="tarefa-item" style="margin-bottom:8px" id="template-etapa-${i}">
+      <div class="tarefa-header" style="cursor:default">
+        <div style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--bg-muted);font-size:11px;font-weight:700;color:var(--text-tertiary);flex-shrink:0">${i + 1}</div>
+        <div style="flex:1;min-width:0;margin-left:10px">
+          <div class="tarefa-nome">${escHTML(e.titulo)}</div>
+          ${e.descricao ? `<div style="font-size:var(--text-xs);color:var(--text-tertiary);margin-top:2px">${escHTML(e.descricao)}</div>` : ''}
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+          <span class="badge ${prioClass[e.prioridade] || 'badge-gray'}">${labelPrioridade(e.prioridade)}</span>
+          <button class="btn btn-icon btn-ghost btn-sm" onclick="editarEtapaTemplate(${i})" title="Editar">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+          </button>
+          <button class="btn btn-icon btn-ghost btn-sm" onclick="removerEtapaTemplate(${i})" title="Remover">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--red-500)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+let _editandoEtapaIdx = null;
+
+function adicionarEtapaTemplate() {
+  _editandoEtapaIdx = null;
+  document.getElementById('templateEtapaNome').value = '';
+  document.getElementById('templateEtapaDesc').value = '';
+  document.getElementById('templateEtapaPrio').value = 'importante';
+  document.getElementById('modalTemplateEtapaTitulo').textContent = 'Nova Etapa';
+  abrirModal('modalTemplateEtapa');
+  setTimeout(() => document.getElementById('templateEtapaNome').focus(), 100);
+}
+
+function editarEtapaTemplate(idx) {
+  _editandoEtapaIdx = idx;
+  const e = state._templateEtapas[idx];
+  document.getElementById('templateEtapaNome').value = e.titulo || '';
+  document.getElementById('templateEtapaDesc').value = e.descricao || '';
+  document.getElementById('templateEtapaPrio').value = e.prioridade || 'importante';
+  document.getElementById('modalTemplateEtapaTitulo').textContent = 'Editar Etapa';
+  abrirModal('modalTemplateEtapa');
+  setTimeout(() => document.getElementById('templateEtapaNome').focus(), 100);
+}
+
+function salvarEtapaTemplate() {
+  const titulo = document.getElementById('templateEtapaNome').value.trim();
+  if (!titulo) { mostrarToast('Nome da etapa é obrigatório', 'error'); return; }
+
+  const etapa = {
+    titulo,
+    descricao: document.getElementById('templateEtapaDesc').value.trim() || '',
+    prioridade: document.getElementById('templateEtapaPrio').value,
+    ordem: 0,
+  };
+
+  if (_editandoEtapaIdx !== null) {
+    state._templateEtapas[_editandoEtapaIdx] = { ...state._templateEtapas[_editandoEtapaIdx], ...etapa };
+  } else {
+    state._templateEtapas.push({ ...etapa, _idx: state._templateEtapas.length });
+  }
+
+  fecharModal('modalTemplateEtapa');
+  renderizarEtapasTemplate();
+}
+
+function removerEtapaTemplate(idx) {
+  state._templateEtapas.splice(idx, 1);
+  renderizarEtapasTemplate();
+}
+
+async function salvarTemplateCompleto() {
+  const btn = document.getElementById('btnSalvarTemplate');
+  btn.disabled = true; btn.textContent = 'Salvando...';
+
+  const conteudo = state._templateEtapas.map((e, i) => ({
+    titulo: e.titulo,
+    descricao: e.descricao || '',
+    prioridade: e.prioridade || 'importante',
+    ordem: i + 1,
+  }));
+
+  try {
+    // Upsert: atualiza se existe, cria se não existe
+    const templateExistente = await getTemplatePlanejado();
+    if (templateExistente) {
+      await db.from('templates').update({ conteudo }).eq('id', templateExistente.id);
+    } else {
+      await db.from('templates').insert([{ categoria: 'planejado', nome: 'Projeto de Móvel Planejado — Padrão', conteudo }]);
+    }
+    mostrarToast('Template salvo com sucesso!', 'success');
+  } catch(e) {
+    mostrarToast('Erro ao salvar template: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Salvar Template';
+  }
 }
 
 function confirmarArquivar(projetoId, nome) {
