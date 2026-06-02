@@ -18,7 +18,7 @@ async function getProjetos() {
     .from('projetos')
     .select(`
       *,
-      tarefas ( id, titulo, status, prioridade ),
+      tarefas ( id, titulo, status, prioridade, duracao_estimada, data_limite ),
       compras_extras ( id, status, descricao )
     `)
     .neq('status', 'arquivado')
