@@ -115,7 +115,6 @@ function renderizarKPIs() {
     return acc + t.length;
   }, 0);
   const urgentes = state.projetos.reduce((acc, p) => {
-    // projetos urgentes
     if (p.prioridade === 'urgente' && p.status === 'ativo') return acc + 1;
     return acc;
   }, 0);
@@ -133,6 +132,94 @@ function renderizarKPIs() {
   const badge = document.getElementById('badgeProjetos');
   if (projAtivos > 0) { badge.textContent = projAtivos; badge.style.display = ''; }
   else badge.style.display = 'none';
+
+  // Tornar cards clicáveis
+  const kpiGrid = document.getElementById('hojeKpis');
+  if (kpiGrid) {
+    const cards = kpiGrid.querySelectorAll('.kpi-card');
+    if (cards[0]) { cards[0].style.cursor = 'pointer'; cards[0].onclick = () => abrirModalKPI('projetos'); }
+    if (cards[1]) { cards[1].style.cursor = 'pointer'; cards[1].onclick = () => abrirModalKPI('tarefas'); }
+    if (cards[2]) { cards[2].style.cursor = 'pointer'; cards[2].onclick = () => abrirModalKPI('urgentes'); }
+    if (cards[3]) { cards[3].style.cursor = 'pointer'; cards[3].onclick = () => abrirModalKPI('compras'); }
+  }
+}
+
+function abrirModalKPI(tipo) {
+  let titulo = '';
+  let itens = [];
+
+  if (tipo === 'projetos') {
+    titulo = 'Projetos Ativos';
+    const projs = state.projetos.filter(p => p.status === 'ativo');
+    itens = projs.map(p => ({
+      titulo: p.nome,
+      sub: `${labelPrioridade(p.prioridade)} · ${(p.tarefas||[]).filter(t=>t.status!=='concluida').length} tarefa(s) pendente(s)`,
+      badge: p.prioridade,
+      onclick: `fecharModal('modalKPI'); irParaProjeto('${p.id}')`,
+    }));
+  } else if (tipo === 'tarefas') {
+    titulo = 'Tarefas Pendentes';
+    state.projetos.forEach(p => {
+      if (p.status !== 'ativo') return;
+      (p.tarefas || []).filter(t => t.status !== 'concluida').forEach(t => {
+        itens.push({
+          titulo: t.titulo,
+          sub: p.nome,
+          badge: t.prioridade,
+          onclick: `fecharModal('modalKPI'); irParaTarefa('${p.id}','${t.id}')`,
+        });
+      });
+    });
+    itens.sort((a, b) => {
+      const m = { urgente: 3, importante: 2, espera: 1 };
+      return (m[b.badge]||1) - (m[a.badge]||1);
+    });
+  } else if (tipo === 'urgentes') {
+    titulo = 'Projetos Urgentes';
+    const projs = state.projetos.filter(p => p.prioridade === 'urgente' && p.status === 'ativo');
+    itens = projs.map(p => ({
+      titulo: p.nome,
+      sub: p.data_fim ? `Prazo: ${formatarData(p.data_fim)}` : 'Sem prazo definido',
+      badge: 'urgente',
+      onclick: `fecharModal('modalKPI'); irParaProjeto('${p.id}')`,
+    }));
+  } else if (tipo === 'compras') {
+    titulo = 'Compras Pendentes';
+    state.projetos.forEach(p => {
+      (p.compras_extras || []).filter(c => c.status !== 'comprado').forEach(c => {
+        itens.push({
+          titulo: c.descricao || 'Item sem nome',
+          sub: `Projeto: ${p.nome}`,
+          badge: null,
+          onclick: `fecharModal('modalKPI'); irParaProjeto('${p.id}')`,
+        });
+      });
+    });
+  }
+
+  const prioClass = { urgente: 'badge-urgente', importante: 'badge-importante', espera: 'badge-espera' };
+  const conteudo = itens.length === 0
+    ? `<p style="font-size:var(--text-sm);color:var(--text-tertiary);text-align:center;padding:24px 0">Nenhum item no momento.</p>`
+    : itens.map(item => `
+      <div class="kpi-modal-item" onclick="${item.onclick}" style="cursor:pointer;padding:12px;border-radius:var(--radius-md);display:flex;align-items:center;gap:10px;border:1px solid var(--border);margin-bottom:8px;transition:background var(--transition)">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:var(--text-sm);font-weight:600;color:var(--text-primary);margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHTML(item.titulo)}</div>
+          <div style="font-size:var(--text-xs);color:var(--text-tertiary)">${escHTML(item.sub)}</div>
+        </div>
+        ${item.badge ? `<span class="badge ${prioClass[item.badge]||'badge-gray'}">${labelPrioridade(item.badge)}</span>` : ''}
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+      </div>`).join('');
+
+  document.getElementById('modalKPITitulo').textContent = `${titulo} (${itens.length})`;
+  document.getElementById('modalKPIConteudo').innerHTML = conteudo;
+  abrirModal('modalKPI');
+}
+
+function irParaProjeto(projetoId) {
+  const projeto = state.projetos.find(p => p.id === projetoId);
+  if (!projeto) return;
+  navegarPara('projetos', document.querySelector('.nav-item[data-view="projetos"]'));
+  setTimeout(() => abrirProjetoDetalhe(projeto), 50);
 }
 
 function renderizarHoje() {
@@ -212,8 +299,8 @@ function renderizarHoje() {
     <div class="hoje-card" onclick="irParaTarefa('${t.projetoId}', '${t.id}')">
       <div class="hoje-card-priority priority-${t.prioridade || 'importante'}"></div>
       <div class="hoje-card-content">
+        <div class="hoje-card-tarefa-titulo">${escHTML(t.titulo)}</div>
         <div class="hoje-card-projeto">${escHTML(t.projetoNome)}</div>
-        <div class="hoje-card-tarefa">${escHTML(t.titulo)}</div>
         <div class="hoje-card-meta">
           <span class="badge badge-${t.prioridade || 'importante'}">${labelPrioridade(t.prioridade)}</span>
           <span class="badge badge-gray">${labelStatus(t.status)}</span>
@@ -245,13 +332,10 @@ function renderizarProjetos(filtro = state.filtroAtual) {
   let lista = state.projetos;
   if (filtro === 'pausado') {
     lista = state.projetos.filter(p => p.status === 'pausado');
+  } else if (filtro === 'arquivado') {
+    lista = state.projetosArquivados || [];
   } else if (filtro !== 'todos') {
-    lista = state.projetos.filter(p => {
-      // Filtra pelo tipo de projeto inferindo do nome ou campo descricao
-      const nome = (p.nome || '').toLowerCase();
-      const desc = (p.descricao || '').toLowerCase();
-      return nome.includes(filtro) || desc.includes(filtro) || (p.cliente && filtro === 'planejado');
-    });
+    lista = state.projetos.filter(p => p.tipo === filtro);
   }
 
   if (lista.length === 0) {
@@ -308,9 +392,19 @@ function renderizarProjetoCard(p) {
         <button class="btn btn-icon btn-ghost" onclick="event.stopPropagation();abrirModalEditarProjeto('${p.id}')" title="Editar">
           <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
         </button>
+        ${p.status === 'arquivado' ? `
+        <button class="btn btn-icon btn-ghost" onclick="event.stopPropagation();restaurarProjeto('${p.id}','${escAttr(p.nome)}')" title="Restaurar">
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+        </button>
+        <button class="btn btn-icon btn-ghost" onclick="event.stopPropagation();confirmarExcluirProjeto('${p.id}','${escAttr(p.nome)}')" title="Excluir permanentemente">
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+        </button>` : `
         <button class="btn btn-icon btn-ghost" onclick="event.stopPropagation();confirmarArquivar('${p.id}', '${escAttr(p.nome)}')" title="Arquivar">
           <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/></svg>
         </button>
+        <button class="btn btn-icon btn-ghost" onclick="event.stopPropagation();confirmarExcluirProjeto('${p.id}','${escAttr(p.nome)}')" title="Excluir permanentemente">
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+        </button>`}
       </div>
     </div>
     <div class="projeto-card-body">
@@ -610,6 +704,7 @@ function abrirModalEditarProjeto(projetoId) {
   document.getElementById('modalProjetoTitulo').textContent = 'Editar Projeto';
   document.getElementById('btnSalvarProjeto').textContent = 'Salvar Alterações';
   document.getElementById('projetoNome').value = p.nome || '';
+  document.getElementById('projetoTipo').value = p.tipo || '';
   document.getElementById('projetoPrioridade').value = p.prioridade || 'espera';
   document.getElementById('projetoStatus').value = p.status || 'ativo';
   document.getElementById('projetoCliente').value = p.cliente || '';
@@ -646,8 +741,11 @@ async function salvarProjeto() {
   const btn = document.getElementById('btnSalvarProjeto');
   btn.disabled = true; btn.textContent = 'Salvando...';
 
+  const tipoVal = document.getElementById('projetoTipo').value;
   const payload = {
     nome,
+    tipo: tipoVal || 'pessoal',
+    horizonte: document.getElementById('projetoHorizonte').value || 'curto',
     prioridade: document.getElementById('projetoPrioridade').value,
     status: document.getElementById('projetoStatus').value,
     cliente: document.getElementById('projetoCliente').value.trim() || null,
@@ -722,6 +820,55 @@ function confirmarArquivar(projetoId, nome) {
       mostrarToast('Projeto arquivado', 'warning');
       fecharModal('modalConfirm');
     } catch(e) { mostrarToast('Erro ao arquivar', 'error'); }
+  };
+  abrirModal('modalConfirm');
+}
+
+function confirmarExcluirProjeto(projetoId, nome) {
+  document.getElementById('confirmMsg').textContent = `⚠️ Excluir permanentemente "${nome}"? Todas as tarefas, subtarefas e compras serão deletadas. Esta ação não pode ser desfeita.`;
+  document.getElementById('btnConfirm').onclick = async () => {
+    try {
+      const { error } = await db.from('projetos').delete().eq('id', projetoId);
+      if (error) throw error;
+      state.projetos = await getProjetos();
+      renderizarKPIs(); renderizarHoje(); renderizarProjetos();
+      if (state.projetoAtual?.id === projetoId) voltarParaProjetos();
+      mostrarToast('Projeto excluído permanentemente', 'warning');
+      fecharModal('modalConfirm');
+    } catch(e) { mostrarToast('Erro ao excluir projeto', 'error'); }
+  };
+  abrirModal('modalConfirm');
+}
+
+async function verArquivados() {
+  try {
+    const { data, error } = await db
+      .from('projetos')
+      .select('*, tarefas(id, status), compras_extras(id, status)')
+      .eq('status', 'arquivado')
+      .order('updated_st', { ascending: false });
+    if (error) throw error;
+    state.projetosArquivados = data || [];
+    filtrarProjetos('arquivado', null);
+    // Marcar filtro visual
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('.filter-btn[data-filter="arquivado"]')?.classList.add('active');
+  } catch(e) {
+    mostrarToast('Erro ao carregar arquivados', 'error');
+  }
+}
+
+function restaurarProjeto(projetoId, nome) {
+  document.getElementById('confirmMsg').textContent = `Restaurar o projeto "${nome}"? Ele voltará para a lista de projetos ativos.`;
+  document.getElementById('btnConfirm').onclick = async () => {
+    try {
+      await atualizarProjeto(projetoId, { status: 'ativo' });
+      state.projetos = await getProjetos();
+      state.projetosArquivados = (state.projetosArquivados || []).filter(p => p.id !== projetoId);
+      renderizarKPIs(); renderizarHoje(); renderizarProjetos();
+      mostrarToast('Projeto restaurado!', 'success');
+      fecharModal('modalConfirm');
+    } catch(e) { mostrarToast('Erro ao restaurar', 'error'); }
   };
   abrirModal('modalConfirm');
 }
