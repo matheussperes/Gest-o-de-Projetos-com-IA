@@ -146,6 +146,38 @@
     }
     .back-btn:hover { color: var(--green-600); }
     .back-btn svg { width: 16px; height: 16px; }
+
+    /* Tela Hoje - tarefa em destaque */
+    .hoje-card-tarefa-titulo {
+      font-size: var(--text-base);
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 2px;
+      line-height: 1.4;
+    }
+    .hoje-card-projeto {
+      font-size: var(--text-xs);
+      color: var(--text-tertiary);
+      font-weight: 500;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    /* KPI cards clicáveis */
+    .kpi-card {
+      cursor: pointer;
+      transition: box-shadow var(--transition), transform var(--transition);
+    }
+    .kpi-card:hover {
+      box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+      transform: translateY(-1px);
+    }
+
+    /* KPI modal item hover */
+    .kpi-modal-item:hover {
+      background: var(--bg-muted);
+    }
   </style>
 </head>
 <body>
@@ -340,6 +372,7 @@
           <button class="filter-btn" data-filter="saas" onclick="filtrarProjetos('saas', this)">SaaS</button>
           <button class="filter-btn" data-filter="pessoal" onclick="filtrarProjetos('pessoal', this)">Pessoal</button>
           <button class="filter-btn" data-filter="pausado" onclick="filtrarProjetos('pausado', this)">Pausados</button>
+          <button class="filter-btn" data-filter="arquivado" onclick="verArquivados()">🗄 Arquivados</button>
         </div>
 
         <div id="projetosLoading" class="loading-center"><div class="spinner"></div><span>Carregando...</span></div>
@@ -666,6 +699,22 @@
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="fecharModal('modalConfirm')">Cancelar</button>
       <button class="btn btn-danger" id="btnConfirm">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal KPI — Detalhes -->
+<div class="modal-overlay" id="modalKPI">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 class="modal-title" id="modalKPITitulo">Detalhes</h2>
+      <button class="modal-close" onclick="fecharModal('modalKPI')">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body" id="modalKPIConteudo" style="max-height:420px;overflow-y:auto"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="fecharModal('modalKPI')">Fechar</button>
     </div>
   </div>
 </div>
