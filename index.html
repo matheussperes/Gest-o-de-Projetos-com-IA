@@ -1140,7 +1140,7 @@
 
 <!-- Modal Editar Etapa do Template -->
 <div class="modal-overlay" id="modalTemplateEtapa">
-  <div class="modal">
+  <div class="modal modal-lg">
     <div class="modal-header">
       <h2 class="modal-title" id="modalTemplateEtapaTitulo">Nova Etapa</h2>
       <button class="modal-close" onclick="fecharModal('modalTemplateEtapa')">
@@ -1149,10 +1149,12 @@
     </div>
     <div class="modal-body">
       <div class="form-grid">
+
         <div class="input-group">
           <label class="input-label required">Nome da etapa</label>
           <input class="input" id="templateEtapaNome" placeholder="Ex: Briefing com o cliente">
         </div>
+
         <div class="input-group">
           <label class="input-label">Prioridade</label>
           <select class="select" id="templateEtapaPrio">
@@ -1161,10 +1163,38 @@
             <option value="espera">⚪ Pode esperar</option>
           </select>
         </div>
+
         <div class="input-group">
           <label class="input-label">Descrição</label>
           <textarea class="input" id="templateEtapaDesc" rows="2" placeholder="Detalhes desta etapa..."></textarea>
         </div>
+
+        <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr">
+          <div class="input-group">
+            <label class="input-label">Duração estimada (horas)</label>
+            <input class="input" type="number" id="templateEtapaDuracao" placeholder="Ex: 2.5" step="0.5" min="0">
+          </div>
+          <div class="input-group">
+            <label class="input-label" title="Dias a partir da criação do projeto">Prazo interno (dias)</label>
+            <input class="input" type="number" id="templateEtapaPrazoDias" placeholder="Ex: 2" min="0" step="1">
+            <span style="font-size:10px;color:var(--text-tertiary);margin-top:3px;display:block">Dias após criação do projeto</span>
+          </div>
+          <div class="input-group">
+            <label class="input-label">Posição na sequência</label>
+            <input class="input" type="number" id="templateEtapaSequencia" placeholder="Ex: 1, 2, 3..." min="1" step="1">
+          </div>
+        </div>
+
+        <!-- Subtarefas inline -->
+        <div class="input-group">
+          <label class="input-label">Subtarefas (passo a passo)</label>
+          <div id="templateSubtarefasInput" style="display:flex;flex-direction:column;gap:6px;margin-bottom:6px"></div>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="adicionarCampoSubtarefaTemplate()" style="align-self:flex-start">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+            Adicionar subtarefa
+          </button>
+        </div>
+
       </div>
     </div>
     <div class="modal-footer">
