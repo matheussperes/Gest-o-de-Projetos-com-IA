@@ -61,9 +61,14 @@ function navegarPara(view, btn) {
   document.querySelectorAll(`.bottom-nav-item[data-view="${view}"]`).forEach(b => b.classList.add('active'));
   document.querySelectorAll(`.nav-item[data-view="${view}"]`).forEach(b => b.classList.add('active'));
 
+  // Carregar linha do tempo ao navegar para ela
+  if (view === 'linha-do-tempo') {
+    renderizarLinhaDeTempo();
+  }
+
   // Header
-  const titulos = { hoje: 'Hoje', projetos: 'Projetos' };
-  const subtitulos = { hoje: 'Suas próximas ações', projetos: 'Todos os seus projetos' };
+  const titulos = { hoje: 'Hoje', projetos: 'Projetos', 'linha-do-tempo': 'Linha do Tempo' };
+  const subtitulos = { hoje: 'Suas próximas ações', projetos: 'Todos os seus projetos', 'linha-do-tempo': 'Prazos e carga de trabalho' };
   document.getElementById('headerTitle').textContent = titulos[view] || '';
   document.getElementById('headerSubtitle').textContent = subtitulos[view] || '';
 
@@ -95,6 +100,226 @@ function abrirProjetoDetalhe(projeto) {
 function voltarParaProjetos() {
   state.projetoAtual = null;
   navegarPara('projetos', document.querySelector('.nav-item[data-view="projetos"]'));
+}
+
+/* ═══════════════════════════════════════
+   LINHA DO TEMPO
+═══════════════════════════════════════ */
+
+function renderizarLinhaDeTempo() {
+  const loading  = document.getElementById('timelineLoading');
+  const vazio    = document.getElementById('timelineVazio');
+  const kpisEl   = document.getElementById('timelineKPIs');
+  const content  = document.getElementById('timelineContent');
+
+  loading.style.display = 'flex';
+  vazio.style.display   = 'none';
+  kpisEl.style.display  = 'none';
+  content.innerHTML     = '';
+
+  // Projetos ativos com prazo definido — ordenados por urgência
+  const projetosComPrazo = state.projetos
+    .filter(p => p.status === 'ativo' && p.data_fim)
+    .sort((a, b) => new Date(a.data_fim) - new Date(b.data_fim));
+
+  // Projetos ativos sem prazo (exibir ao final)
+  const projetosSemPrazo = state.projetos
+    .filter(p => p.status === 'ativo' && !p.data_fim);
+
+  loading.style.display = 'none';
+
+  if (projetosComPrazo.length === 0 && projetosSemPrazo.length === 0) {
+    vazio.style.display = 'block';
+    return;
+  }
+
+  // ─── KPIs globais ───
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+
+  let totalHorasPendentes = 0;
+  let totalProjetos = projetosComPrazo.length;
+  let emRisco = 0;
+
+  projetosComPrazo.forEach(p => {
+    const tarefasPend = (p.tarefas || []).filter(t => t.status !== 'concluida');
+    const horasPend = tarefasPend.reduce((acc, t) => acc + (parseFloat(t.duracao_estimada) || 0), 0);
+    totalHorasPendentes += horasPend;
+    const diasRestantes = Math.ceil((new Date(p.data_fim) - hoje) / (1000 * 60 * 60 * 24));
+    if (diasRestantes <= 7) emRisco++;
+  });
+
+  kpisEl.style.display = 'grid';
+  kpisEl.innerHTML = `
+    <div class="timeline-kpi-card">
+      <div class="timeline-kpi-val">${totalProjetos}</div>
+      <div class="timeline-kpi-lbl">com prazo</div>
+    </div>
+    <div class="timeline-kpi-card">
+      <div class="timeline-kpi-val${emRisco > 0 ? ' danger' : ''}">${emRisco}</div>
+      <div class="timeline-kpi-lbl">em risco (≤7 dias)</div>
+    </div>
+    <div class="timeline-kpi-card">
+      <div class="timeline-kpi-val">${totalHorasPendentes > 0 ? totalHorasPendentes.toFixed(1) + 'h' : '—'}</div>
+      <div class="timeline-kpi-lbl">horas pendentes</div>
+    </div>`;
+
+  // ─── Cards de projetos com prazo ───
+  projetosComPrazo.forEach(p => {
+    content.appendChild(criarCardTimeline(p, hoje));
+  });
+
+  // ─── Projetos sem prazo (colapsados) ───
+  if (projetosSemPrazo.length > 0) {
+    const semPrazoEl = document.createElement('div');
+    semPrazoEl.style.cssText = 'margin-top:8px';
+    semPrazoEl.innerHTML = `
+      <p style="font-size:var(--text-xs);color:var(--text-tertiary);margin-bottom:8px;font-weight:500;text-transform:uppercase;letter-spacing:0.05em">
+        Sem prazo definido (${projetosSemPrazo.length})
+      </p>
+      ${projetosSemPrazo.map(p => `
+        <div class="timeline-projeto-card" style="border-left:3px solid var(--gray-300);opacity:0.7;cursor:pointer"
+             onclick="abrirProjetoDetalhe(${JSON.stringify(p).replace(/"/g, '&quot;')})">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:var(--text-sm);font-weight:600;color:var(--text-primary)">${escHTML(p.nome)}</span>
+            <span style="font-size:var(--text-xs);color:var(--text-tertiary)">Sem prazo</span>
+          </div>
+        </div>`).join('')}`;
+    content.appendChild(semPrazoEl);
+  }
+}
+
+function criarCardTimeline(p, hoje) {
+  const prazoDate = new Date(p.data_fim);
+  prazoDate.setHours(23, 59, 59);
+  const diasRestantes = Math.ceil((prazoDate - hoje) / (1000 * 60 * 60 * 24));
+
+  const tarefas = p.tarefas || [];
+  const tarefasPend = tarefas.filter(t => t.status !== 'concluida');
+  const tarefasConc = tarefas.filter(t => t.status === 'concluida');
+
+  // Horas estimadas pendentes
+  const horasPendentes = tarefasPend.reduce((acc, t) => acc + (parseFloat(t.duracao_estimada) || 0), 0);
+
+  // Progresso baseado em tarefas (fallback para subtarefas se sem tarefas com duração)
+  let progresso = 0;
+  if (tarefas.length > 0) {
+    progresso = Math.round((tarefasConc.length / tarefas.length) * 100);
+  }
+
+  // Determinar status de risco
+  let risco = 'ok';
+  let corBarra = 'var(--green-500)';
+  if (diasRestantes < 0) {
+    risco = 'risco'; corBarra = 'var(--red-500)';
+  } else if (diasRestantes <= 7) {
+    risco = 'risco'; corBarra = 'var(--red-500)';
+  } else if (diasRestantes <= 14) {
+    risco = 'atencao'; corBarra = 'var(--amber-500)';
+  }
+
+  // Alerta de carga vs prazo
+  let htmlAlerta = '';
+  if (horasPendentes > 0 && diasRestantes > 0) {
+    const hPorDia = horasPendentes / diasRestantes;
+    if (hPorDia > 4) {
+      htmlAlerta = `
+        <div class="timeline-alerta danger">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--red-500)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <span class="timeline-alerta-text">Você tem ${diasRestantes} dia${diasRestantes !== 1 ? 's' : ''} e ${horasPendentes.toFixed(1)}h de trabalho pendente — exige ~${hPorDia.toFixed(1)}h/dia. Risco alto.</span>
+        </div>`;
+    } else if (hPorDia > 2) {
+      htmlAlerta = `
+        <div class="timeline-alerta">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--amber-600)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <span class="timeline-alerta-text">Atenção: ${horasPendentes.toFixed(1)}h pendentes em ${diasRestantes} dia${diasRestantes !== 1 ? 's' : ''} (~${hPorDia.toFixed(1)}h/dia). Fique de olho no ritmo.</span>
+        </div>`;
+    }
+  } else if (diasRestantes < 0) {
+    htmlAlerta = `
+      <div class="timeline-alerta danger">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--red-500)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <span class="timeline-alerta-text">Prazo vencido há ${Math.abs(diasRestantes)} dia${Math.abs(diasRestantes) !== 1 ? 's' : ''}. Atualize o prazo ou arquive o projeto.</span>
+      </div>`;
+  }
+
+  // Tarefas pendentes com indicador de status
+  const htmlTarefas = tarefasPend.length > 0 ? `
+    <div class="timeline-tarefas-lista">
+      ${tarefasPend.slice(0, 5).map(t => {
+        const temDataLimite = t.data_limite;
+        let badgeClass = 'sem-prazo';
+        let badgeLabel = 'sem prazo';
+        if (temDataLimite) {
+          const dl = new Date(t.data_limite);
+          dl.setHours(23, 59, 59);
+          const diasT = Math.ceil((dl - hoje) / (1000 * 60 * 60 * 24));
+          if (diasT < 0) { badgeClass = 'late'; badgeLabel = 'atrasada'; }
+          else if (diasT <= 3) { badgeClass = 'warn'; badgeLabel = `${diasT}d`; }
+          else { badgeClass = 'ok'; badgeLabel = formatarDataCurta(t.data_limite); }
+        }
+        const corDot = badgeClass === 'late' ? 'var(--red-500)' : badgeClass === 'warn' ? 'var(--amber-500)' : 'var(--green-500)';
+        const durLabel = t.duracao_estimada ? `${parseFloat(t.duracao_estimada)}h` : '';
+        return `
+          <div class="timeline-tarefa-row">
+            <div class="timeline-tarefa-dot" style="background:${corDot}"></div>
+            <span class="timeline-tarefa-nome">${escHTML(t.titulo)}</span>
+            ${durLabel ? `<span class="timeline-tarefa-dur">${durLabel}</span>` : ''}
+            <span class="timeline-tarefa-badge ${badgeClass}">${badgeLabel}</span>
+          </div>`;
+      }).join('')}
+      ${tarefasPend.length > 5 ? `<p style="font-size:var(--text-xs);color:var(--text-tertiary);padding:4px 0">+ ${tarefasPend.length - 5} tarefa${tarefasPend.length - 5 !== 1 ? 's' : ''} restante${tarefasPend.length - 5 !== 1 ? 's' : ''}</p>` : ''}
+    </div>` : '';
+
+  // Datas formatadas
+  const inicio = p.data_inicio ? formatarDataCurta(p.data_inicio) : '—';
+  const prazoLabel = formatarDataCurta(p.data_fim);
+  const diasLabel = diasRestantes < 0
+    ? `vencido há ${Math.abs(diasRestantes)}d`
+    : diasRestantes === 0 ? 'entrega hoje!'
+    : `${diasRestantes} dia${diasRestantes !== 1 ? 's' : ''}`;
+
+  const card = document.createElement('div');
+  card.className = `timeline-projeto-card ${risco}`;
+  card.innerHTML = `
+    <div class="timeline-projeto-header">
+      <span class="timeline-projeto-nome" onclick="abrirProjetoDetalhe(state.projetos.find(x=>x.id==='${p.id}'))">${escHTML(p.nome)}</span>
+      <span class="badge ${risco === 'risco' ? 'badge-red' : risco === 'atencao' ? 'badge-amber' : 'badge-green'}" style="white-space:nowrap;flex-shrink:0">${diasLabel}</span>
+    </div>
+    <div class="timeline-meta">
+      <span class="timeline-meta-item">
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        Entrega: ${prazoLabel}
+      </span>
+      ${horasPendentes > 0 ? `
+      <span class="timeline-meta-item">
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        ${horasPendentes.toFixed(1)}h pendentes
+      </span>` : ''}
+      <span class="timeline-meta-item">
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        ${progresso}% concluído
+      </span>
+    </div>
+    <div class="timeline-bar-wrap">
+      <div class="timeline-track">
+        <div class="timeline-fill" style="width:${progresso}%;background:${corBarra}"></div>
+      </div>
+      <div class="timeline-bar-labels">
+        <span>${inicio}</span>
+        <span>${prazoLabel}</span>
+      </div>
+    </div>
+    ${htmlAlerta}
+    ${htmlTarefas}`;
+
+  return card;
+}
+
+function formatarDataCurta(dateStr) {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr + 'T12:00:00');
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
 }
 
 function mostrarProjetoTab(tab, btn) {
@@ -1126,6 +1351,8 @@ async function abrirModalEditarTarefa(tarefaId) {
   document.getElementById('tarefaDescricao').value = desc;
   document.getElementById('tarefaPrioridade').value = prio;
   document.getElementById('tarefaStatus').value = 'pendente';
+  document.getElementById('tarefaDuracao').value = '';
+  document.getElementById('tarefaDataLimite').value = '';
   _subtarefasInputCount = 0;
 
   // Garante seção visível
@@ -1186,6 +1413,8 @@ function abrirModalTarefa() {
   document.getElementById('tarefaDescricao').value = '';
   document.getElementById('tarefaPrioridade').value = 'importante';
   document.getElementById('tarefaStatus').value = 'pendente';
+  document.getElementById('tarefaDuracao').value = '';
+  document.getElementById('tarefaDataLimite').value = '';
   document.getElementById('subtarefasInput').innerHTML = '';
   _subtarefasInputCount = 0;
   // Restaura seção de subtarefas caso tenha sido ocultada pelo modo edição
@@ -1222,10 +1451,14 @@ async function salvarTarefa() {
   try {
     if (state.editandoTarefaId) {
       // MODO EDIÇÃO
+      const duracaoVal = parseFloat(document.getElementById('tarefaDuracao').value) || null;
+      const dataLimiteVal = document.getElementById('tarefaDataLimite').value || null;
       await atualizarTarefa(state.editandoTarefaId, {
         titulo: nome,
         descricao: document.getElementById('tarefaDescricao').value.trim() || null,
         prioridade: document.getElementById('tarefaPrioridade').value,
+        ...(duracaoVal !== null && { duracao_estimada: duracaoVal }),
+        ...(dataLimiteVal !== null && { data_limite: dataLimiteVal }),
       });
 
       // Processar subtarefas do modal
@@ -1268,12 +1501,16 @@ async function salvarTarefa() {
     } else {
       // MODO CRIAÇÃO
       if (!state.projetoAtual) { mostrarToast('Nenhum projeto selecionado', 'error'); return; }
+      const duracaoVal = parseFloat(document.getElementById('tarefaDuracao').value) || null;
+      const dataLimiteVal = document.getElementById('tarefaDataLimite').value || null;
       const payload = {
         projeto_id: state.projetoAtual.id,
         titulo: nome,
         descricao: document.getElementById('tarefaDescricao').value.trim() || null,
         prioridade: document.getElementById('tarefaPrioridade').value,
         status: document.getElementById('tarefaStatus').value,
+        duracao_estimada: duracaoVal,
+        data_limite: dataLimiteVal,
       };
       const tarefa = await criarTarefa(payload);
 
