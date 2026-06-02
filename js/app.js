@@ -27,6 +27,7 @@ async function carregarTudo() {
     renderizarKPIs();
     renderizarHoje();
     renderizarProjetos();
+    renderizarSidebarProjetos();
   } catch (e) {
     mostrarToast('Erro ao conectar com o banco de dados. Verifique as credenciais.', 'error');
   }
@@ -97,6 +98,243 @@ function abrirProjetoDetalhe(projeto) {
 function voltarParaProjetos() {
   state.projetoAtual = null;
   navegarPara('projetos', document.querySelector('.nav-item[data-view="projetos"]'));
+}
+
+/* ═══════════════════════════════════════
+   SIDEBAR — PROJETOS ATIVOS E PAUSADOS
+═══════════════════════════════════════ */
+
+function renderizarSidebarProjetos() {
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+
+  const ativos   = state.projetos.filter(p => p.status === 'ativo');
+  const pausados = state.projetos.filter(p => p.status === 'pausado');
+
+  // Ordenar ativos: com prazo mais curto primeiro, sem prazo por último
+  const ativosOrdenados = [...ativos].sort((a, b) => {
+    if (a.data_fim && b.data_fim) return new Date(a.data_fim) - new Date(b.data_fim);
+    if (a.data_fim) return -1;
+    if (b.data_fim) return 1;
+    return 0;
+  });
+
+  // Renderizar ativos
+  const countAtivos = document.getElementById('navCountAtivos');
+  const bodyAtivos  = document.getElementById('navBodyAtivos');
+  if (countAtivos) countAtivos.textContent = ativos.length;
+  if (bodyAtivos) {
+    bodyAtivos.innerHTML = ativosOrdenados.map(p => {
+      let diasLabel = '';
+      let diasClass = '';
+      if (p.data_fim) {
+        const dias = Math.ceil((new Date(p.data_fim) - hoje) / (1000 * 60 * 60 * 24));
+        if (dias < 0) { diasLabel = 'vencido'; diasClass = 'urgente'; }
+        else if (dias === 0) { diasLabel = 'hoje!'; diasClass = 'urgente'; }
+        else if (dias <= 7) { diasLabel = `${dias}d`; diasClass = 'urgente'; }
+        else if (dias <= 14) { diasLabel = `${dias}d`; diasClass = 'atencao'; }
+        else { diasLabel = `${dias}d`; diasClass = ''; }
+      }
+      const corDot = p.prioridade === 'urgente' ? 'var(--red-500)' : p.prioridade === 'importante' ? 'var(--amber-500)' : 'var(--green-400)';
+      return `
+        <button class="nav-projeto-item" onclick="abrirProjetoDetalhe(state.projetos.find(x=>x.id==='${p.id}')); fecharSidebar()">
+          <span class="nav-projeto-dot" style="background:${corDot}"></span>
+          <span class="nav-projeto-nome">${escHTML(p.nome)}</span>
+          ${diasLabel ? `<span class="nav-projeto-dias ${diasClass}">${diasLabel}</span>` : ''}
+        </button>`;
+    }).join('') || '<p style="font-size:var(--text-xs);color:var(--text-tertiary);padding:4px 20px">Nenhum projeto ativo</p>';
+  }
+
+  // Renderizar pausados
+  const groupPausados = document.getElementById('navGroupPausados');
+  const countPausados = document.getElementById('navCountPausados');
+  const bodyPausados  = document.getElementById('navBodyPausados');
+  if (groupPausados) groupPausados.style.display = pausados.length > 0 ? '' : 'none';
+  if (countPausados) countPausados.textContent = pausados.length;
+  if (bodyPausados) {
+    bodyPausados.innerHTML = pausados.map(p => `
+      <button class="nav-projeto-item" onclick="abrirProjetoDetalhe(state.projetos.find(x=>x.id==='${p.id}')); fecharSidebar()">
+        <span class="nav-projeto-dot" style="background:var(--gray-300)"></span>
+        <span class="nav-projeto-nome">${escHTML(p.nome)}</span>
+      </button>`
+    ).join('');
+  }
+}
+
+function toggleNavGroup(grupo) {
+  const body    = document.getElementById(`navBody${grupo.charAt(0).toUpperCase() + grupo.slice(1)}`);
+  const chevron = document.getElementById(`chevron${grupo.charAt(0).toUpperCase() + grupo.slice(1)}`);
+  if (body)    body.classList.toggle('collapsed');
+  if (chevron) chevron.classList.toggle('open');
+}
+
+/* ═══════════════════════════════════════
+   TEMPLATES — LISTA GERAL
+═══════════════════════════════════════ */
+
+// Estado do editor de template
+state._templateEditandoId  = null;
+state._templateEditandoNome = '';
+state._templateEditandoTipo = '';
+
+async function abrirTemplates() {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-template').classList.add('active');
+  document.getElementById('headerTitle').textContent = 'Templates';
+  document.getElementById('headerSubtitle').textContent = 'Automatize a criação de projetos';
+
+  document.querySelectorAll('.nav-item, .bottom-nav-item').forEach(b => b.classList.remove('active'));
+  document.querySelector('.nav-item[data-nav="template"]')?.classList.add('active');
+
+  // Garante que mostra a lista, não o editor
+  document.getElementById('templatesLista').style.display = '';
+  document.getElementById('templatesEditor').style.display = 'none';
+
+  fecharSidebar();
+  await carregarListaTemplates();
+}
+
+async function carregarListaTemplates() {
+  const grid  = document.getElementById('templatesGrid');
+  const vazio = document.getElementById('templatesVazio');
+  grid.innerHTML = '<div class="loading-center"><div class="spinner"></div></div>';
+  vazio.style.display = 'none';
+
+  try {
+    const { data: templates, error } = await db
+      .from('templates')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+
+    if (!templates || templates.length === 0) {
+      grid.innerHTML = '';
+      vazio.style.display = '';
+      return;
+    }
+
+    const tipoLabels = { planejado: '🪵 Móvel Planejado', saas: '💻 SaaS', pessoal: '⭐ Pessoal', outro: '📁 Outro' };
+    const tipoEmoji  = { planejado: '🪵', saas: '💻', pessoal: '⭐', outro: '📁' };
+    const tipoBg     = { planejado: 'var(--green-50)', saas: 'var(--blue-50)', pessoal: 'var(--amber-50)', outro: 'var(--gray-100)' };
+
+    grid.innerHTML = `<div class="templates-grid">${templates.map(t => {
+      const etapas = (t.conteudo || []).length;
+      const ativo  = t.ativo !== false;
+      return `
+        <div class="template-card${ativo ? '' : ' inativo'}" id="tcard-${t.id}">
+          <div class="template-card-header">
+            <div class="template-card-icon" style="background:${tipoBg[t.categoria] || tipoBg.outro}">${tipoEmoji[t.categoria] || '📁'}</div>
+            <div class="template-card-info">
+              <div class="template-card-nome">${escHTML(t.nome || 'Template sem nome')}</div>
+              <div class="template-card-tipo">${tipoLabels[t.categoria] || t.categoria || 'Outro'}</div>
+            </div>
+          </div>
+          <div class="template-card-meta">${etapas} etapa${etapas !== 1 ? 's' : ''} · ${ativo ? '<span style="color:var(--green-600);font-weight:600">Ativo</span>' : '<span style="color:var(--text-tertiary)">Inativo</span>'}</div>
+          <div class="template-card-actions">
+            <button class="btn btn-secondary btn-sm" onclick="editarTemplate('${t.id}')">
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+              Editar
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="toggleAtivoTemplate('${t.id}', ${ativo})">
+              ${ativo ? 'Desativar' : 'Ativar'}
+            </button>
+            <button class="btn btn-ghost btn-sm" onclick="confirmarExcluirTemplate('${t.id}', '${escAttr(t.nome || '')}')" style="color:var(--red-500)">
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+            </button>
+          </div>
+        </div>`;
+    }).join('')}</div>`;
+  } catch(e) {
+    grid.innerHTML = '<p style="color:var(--text-tertiary);font-size:var(--text-sm);padding:16px">Erro ao carregar templates.</p>';
+  }
+}
+
+function abrirNovoTemplate() {
+  document.getElementById('novoTemplateNome').value = '';
+  document.getElementById('novoTemplateTipo').value = 'planejado';
+  document.getElementById('novoTemplateDesc').value = '';
+  document.getElementById('modalNovoTemplateTitulo').textContent = 'Novo Template';
+  abrirModal('modalNovoTemplate');
+  setTimeout(() => document.getElementById('novoTemplateNome').focus(), 100);
+}
+
+async function criarNovoTemplate() {
+  const nome = document.getElementById('novoTemplateNome').value.trim();
+  if (!nome) { mostrarToast('Nome do template é obrigatório', 'error'); return; }
+  const categoria = document.getElementById('novoTemplateTipo').value;
+  const descricao = document.getElementById('novoTemplateDesc').value.trim() || null;
+
+  try {
+    const { data, error } = await db.from('templates').insert([{
+      nome, categoria, descricao, conteudo: [], ativo: true
+    }]).select().single();
+    if (error) throw error;
+    fecharModal('modalNovoTemplate');
+    mostrarToast('Template criado!', 'success');
+    await editarTemplate(data.id);
+  } catch(e) {
+    mostrarToast('Erro ao criar template: ' + e.message, 'error');
+  }
+}
+
+async function editarTemplate(templateId) {
+  // Busca template do banco
+  try {
+    const { data: t, error } = await db.from('templates').select('*').eq('id', templateId).single();
+    if (error) throw error;
+
+    state._templateEditandoId   = templateId;
+    state._templateEditandoNome = t.nome || 'Template';
+    state._templateEditandoTipo = t.categoria || 'outro';
+
+    document.getElementById('editorTemplateNome').textContent = t.nome || 'Template';
+    const tipoLabels = { planejado: '🪵 Móvel Planejado', saas: '💻 SaaS', pessoal: '⭐ Pessoal', outro: '📁 Outro' };
+    document.getElementById('editorTemplateTipo').textContent = tipoLabels[t.categoria] || t.categoria || '';
+
+    document.getElementById('templatesLista').style.display = 'none';
+    document.getElementById('templatesEditor').style.display = '';
+
+    document.getElementById('headerTitle').textContent = t.nome || 'Template';
+    document.getElementById('headerSubtitle').textContent = 'Editando etapas';
+
+    // Carrega etapas
+    state._templateEtapas = (t.conteudo || []).map((e, i) => ({ ...e, _idx: i }));
+    document.getElementById('templateLoading').style.display = 'none';
+    renderizarEtapasTemplate();
+  } catch(e) {
+    mostrarToast('Erro ao carregar template', 'error');
+  }
+}
+
+function voltarParaListaTemplates() {
+  document.getElementById('templatesLista').style.display = '';
+  document.getElementById('templatesEditor').style.display = 'none';
+  document.getElementById('headerTitle').textContent = 'Templates';
+  document.getElementById('headerSubtitle').textContent = 'Automatize a criação de projetos';
+  state._templateEditandoId = null;
+  carregarListaTemplates();
+}
+
+async function toggleAtivoTemplate(templateId, ativoAtual) {
+  try {
+    await db.from('templates').update({ ativo: !ativoAtual }).eq('id', templateId);
+    mostrarToast(ativoAtual ? 'Template desativado' : 'Template ativado!', 'success');
+    await carregarListaTemplates();
+  } catch(e) {
+    mostrarToast('Erro ao alterar template', 'error');
+  }
+}
+
+function confirmarExcluirTemplate(templateId, nome) {
+  document.getElementById('confirmMsg').textContent = `Excluir o template "${nome}"? Esta ação não pode ser desfeita.`;
+  document.getElementById('btnConfirm').onclick = async () => {
+    try {
+      await db.from('templates').delete().eq('id', templateId);
+      fecharModal('modalConfirm');
+      mostrarToast('Template excluído', 'warning');
+      await carregarListaTemplates();
+    } catch(e) { mostrarToast('Erro ao excluir', 'error'); }
+  };
+  abrirModal('modalConfirm');
 }
 
 /* ═══════════════════════════════════════
@@ -1249,7 +1487,7 @@ async function salvarProjeto() {
       const tipo = document.getElementById('projetoTipo').value;
       const aplicar = document.getElementById('aplicarTemplate').checked;
       if (tipo === 'planejado' && aplicar) {
-        await criarTemplateEtapasPlanejado(novo.id);
+        await criarTemplateEtapasPlanejado(novo.id, tipoVal);
       }
     }
 
@@ -1258,6 +1496,7 @@ async function salvarProjeto() {
     renderizarKPIs();
     renderizarHoje();
     renderizarProjetos();
+    renderizarSidebarProjetos();
 
     if (state.projetoAtual && state.editandoProjetoId === state.projetoAtual.id) {
       const atualizado = state.projetos.find(p => p.id === state.projetoAtual.id);
@@ -1274,15 +1513,20 @@ async function salvarProjeto() {
   }
 }
 
-async function criarTemplateEtapasPlanejado(projetoId) {
-  // Tenta usar o template salvo no banco primeiro
-  const templateSalvo = await getTemplatePlanejado();
+async function criarTemplateEtapasPlanejado(projetoId, categoria = 'planejado') {
+  // Busca primeiro template ativo da categoria no banco
+  const { data: templates } = await db.from('templates')
+    .select('*')
+    .eq('categoria', categoria)
+    .eq('ativo', true)
+    .limit(1);
+  const templateSalvo = templates?.[0];
   let etapas;
 
   if (templateSalvo && templateSalvo.conteudo && templateSalvo.conteudo.length > 0) {
     etapas = templateSalvo.conteudo;
   } else {
-    // Fallback: etapas padrão hardcoded
+    // Fallback: etapas padrão hardcoded para planejado
     etapas = [
       { titulo: 'Briefing com o cliente', descricao: 'Coletar medidas do ambiente, estilo desejado, referências e necessidades.', prioridade: 'urgente' },
       { titulo: 'Projeto no SketchUp', descricao: 'Criar visualização 3D conforme briefing e alinhá-la com o cliente.', prioridade: 'urgente' },
@@ -1304,47 +1548,33 @@ async function criarTemplateEtapasPlanejado(projetoId) {
    GERENCIADOR DE TEMPLATE — Planejados
 ═══════════════════════════════════════ */
 
+// abrirGerenciadorTemplate mantido por compatibilidade (usado em projetos antigos)
 async function abrirGerenciadorTemplate() {
-  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-  document.getElementById('view-template').classList.add('active');
-  document.getElementById('headerTitle').textContent = 'Template: Móvel Planejado';
-  document.getElementById('headerSubtitle').textContent = 'Etapas aplicadas em todo novo projeto planejado';
-
-  // Ativar nav item correto
-  document.querySelectorAll('.nav-item, .bottom-nav-item').forEach(b => b.classList.remove('active'));
-  document.querySelector('.nav-item[data-nav="template"]')?.classList.add('active');
-
-  fecharSidebar();
-  await carregarEtapasTemplate();
+  await abrirTemplates();
 }
 
 async function carregarEtapasTemplate() {
-  const lista = document.getElementById('templateEtapasList');
-  const loading = document.getElementById('templateLoading');
-  loading.style.display = '';
-  lista.innerHTML = '';
-
-  const templateSalvo = await getTemplatePlanejado();
-  let etapas = [];
-
-  if (templateSalvo && templateSalvo.conteudo && templateSalvo.conteudo.length > 0) {
-    etapas = templateSalvo.conteudo;
-  } else {
-    etapas = [
-      { titulo: 'Briefing com o cliente', descricao: 'Coletar medidas do ambiente, estilo desejado, referências e necessidades.', prioridade: 'urgente', ordem: 1 },
-      { titulo: 'Projeto no SketchUp', descricao: 'Criar visualização 3D conforme briefing e alinhá-la com o cliente.', prioridade: 'urgente', ordem: 2 },
-      { titulo: 'Orçamento e proposta', descricao: 'Calcular custo de material, mão de obra e definir margem. Enviar proposta.', prioridade: 'urgente', ordem: 3 },
-      { titulo: 'Contrato assinado', descricao: 'Formalizar o acordo, receber 50% do valor combinado.', prioridade: 'urgente', ordem: 4 },
-      { titulo: 'Pedido de material', descricao: 'Enviar plano de corte ao parceiro e fechar pedido com fornecedor.', prioridade: 'importante', ordem: 5 },
-      { titulo: 'Compras extras', descricao: 'Adquirir puxadores, vidros, espelhos e demais itens fora do fornecedor padrão.', prioridade: 'importante', ordem: 6 },
-      { titulo: 'Pré-montagem na marcenaria', descricao: 'Acompanhar montagem, conferir medidas e acabamento.', prioridade: 'importante', ordem: 7 },
-      { titulo: 'Entrega e instalação', descricao: 'Organizar frete, agendar instalação com parceiro e confirmar com o cliente.', prioridade: 'urgente', ordem: 8 },
-      { titulo: 'Pagamento final e encerramento', descricao: 'Receber os 50% restantes e documentar o projeto concluído.', prioridade: 'importante', ordem: 9 },
-    ];
+  // Compatibilidade: se não há template em edição, busca o planejado
+  if (!state._templateEditandoId) {
+    const templateSalvo = await getTemplatePlanejado();
+    if (templateSalvo) {
+      await editarTemplate(templateSalvo.id);
+      return;
+    }
+    // Se não existe, cria um novo padrão
+    const { data } = await db.from('templates').insert([{
+      nome: 'Projeto de Móvel Planejado — Padrão',
+      categoria: 'planejado',
+      conteudo: [],
+      ativo: true,
+    }]).select().single();
+    if (data) await editarTemplate(data.id);
+    return;
   }
-
-  state._templateEtapas = etapas.map((e, i) => ({ ...e, _idx: i }));
-  loading.style.display = 'none';
+  // Se já há um template em edição, apenas recarrega as etapas
+  const { data: t } = await db.from('templates').select('conteudo').eq('id', state._templateEditandoId).single();
+  state._templateEtapas = ((t?.conteudo) || []).map((e, i) => ({ ...e, _idx: i }));
+  document.getElementById('templateLoading').style.display = 'none';
   renderizarEtapasTemplate();
 }
 
@@ -1440,14 +1670,16 @@ async function salvarTemplateCompleto() {
   }));
 
   try {
-    // Upsert: atualiza se existe, cria se não existe
-    const templateExistente = await getTemplatePlanejado();
-    if (templateExistente) {
-      await db.from('templates').update({ conteudo }).eq('id', templateExistente.id);
+    if (state._templateEditandoId) {
+      await db.from('templates').update({ conteudo }).eq('id', state._templateEditandoId);
     } else {
-      await db.from('templates').insert([{ categoria: 'planejado', nome: 'Projeto de Móvel Planejado — Padrão', conteudo }]);
+      // Fallback: salva no template planejado padrão
+      const templateExistente = await getTemplatePlanejado();
+      if (templateExistente) {
+        await db.from('templates').update({ conteudo }).eq('id', templateExistente.id);
+      }
     }
-    mostrarToast('Template salvo com sucesso!', 'success');
+    mostrarToast('Template salvo!', 'success');
   } catch(e) {
     mostrarToast('Erro ao salvar template: ' + e.message, 'error');
   } finally {
@@ -1461,7 +1693,7 @@ function confirmarArquivar(projetoId, nome) {
     try {
       await arquivarProjeto(projetoId);
       state.projetos = await getProjetos();
-      renderizarKPIs(); renderizarHoje(); renderizarProjetos();
+      renderizarKPIs(); renderizarHoje(); renderizarProjetos(); renderizarSidebarProjetos();
       if (state.projetoAtual?.id === projetoId) voltarParaProjetos();
       mostrarToast('Projeto arquivado', 'warning');
       fecharModal('modalConfirm');
@@ -1477,7 +1709,7 @@ function confirmarExcluirProjeto(projetoId, nome) {
       const { error } = await db.from('projetos').delete().eq('id', projetoId);
       if (error) throw error;
       state.projetos = await getProjetos();
-      renderizarKPIs(); renderizarHoje(); renderizarProjetos();
+      renderizarKPIs(); renderizarHoje(); renderizarProjetos(); renderizarSidebarProjetos();
       if (state.projetoAtual?.id === projetoId) voltarParaProjetos();
       mostrarToast('Projeto excluído permanentemente', 'warning');
       fecharModal('modalConfirm');
@@ -1511,7 +1743,7 @@ function restaurarProjeto(projetoId, nome) {
       await atualizarProjeto(projetoId, { status: 'ativo' });
       state.projetos = await getProjetos();
       state.projetosArquivados = (state.projetosArquivados || []).filter(p => p.id !== projetoId);
-      renderizarKPIs(); renderizarHoje(); renderizarProjetos();
+      renderizarKPIs(); renderizarHoje(); renderizarProjetos(); renderizarSidebarProjetos();
       mostrarToast('Projeto restaurado!', 'success');
       fecharModal('modalConfirm');
     } catch(e) { mostrarToast('Erro ao restaurar', 'error'); }
